@@ -1,13 +1,12 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import type { PublicProfile } from "@/lib/profile/types";
+import { siteOrigin } from "@/lib/siteUrl";
 import { passportAvatarUrl, passportBadgeUrl } from "./assetUrls";
-
 /** Satori requires raster images it can decode — normalize everything to PNG data URLs. */
 async function fetchAsPngDataUrl(url: string): Promise<string> {
   let buf: Buffer;
-  const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
-  if (url.startsWith(`${origin}/`) || url.startsWith("/")) {
+  const origin = siteOrigin();  if (url.startsWith(`${origin}/`) || url.startsWith("/")) {
     const pathname = url.startsWith("/") ? url : new URL(url).pathname;
     const localPath = path.join(process.cwd(), "public", pathname.replace(/^\//, ""));
     buf = await readFile(localPath);

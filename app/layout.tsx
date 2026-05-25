@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import { Toaster } from "react-hot-toast";
 import { SiteBackdrop } from "@/components/SiteBackdrop";
 import { VibeNightShell } from "@/components/VibeNightShell";
-import { absoluteUrl } from "@/lib/siteUrl";
+import { absoluteUrl, siteMetadataBase } from "@/lib/siteUrl";
 import "./globals.css";
 
 const brice = localFont({
@@ -26,7 +26,7 @@ const mundial = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  metadataBase: siteMetadataBase(),
   title: "VIBE NIGHT",
   description:
     "Good Vibes Club game night — six arcade titles, one account, shared leaderboards, and Vibe Night passports.",
