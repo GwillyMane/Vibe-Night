@@ -1,0 +1,49 @@
+{
+  "name": "vibe-sling",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "clean": "node scripts/clean-next.js",
+    "free-port": "node scripts/free-dev-port.js",
+    "dev": "next dev",
+    "dev:clean": "npm run clean && node scripts/free-dev-port.js && next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "migrate": "npx tsx scripts/migrate-db.ts",
+    "upload:screenshots": "npx tsx scripts/upload-dev-screenshots.ts",
+    "record:previews": "node scripts/record-game-previews.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.1",
+    "bcryptjs": "^3.0.3",
+    "framer-motion": "^11.0.0",
+    "howler": "^2.2.4",
+    "lucide-react": "^0.344.0",
+    "matter-js": "^0.20.0",
+    "next": "14.2.15",
+    "pg": "^8.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.4.1",
+    "satori": "^0.26.0",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/howler": "^2.2.13",
+    "@types/matter-js": "^0.20.2",
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.17",
+    "dotenv": "^17.4.2",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.15",
+    "playwright": "^1.60.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
+  }
+}
