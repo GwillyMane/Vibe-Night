@@ -25,6 +25,8 @@ const mundial = localFont({
   display: "swap",
 });
 
+const OG_IMAGE = "/og-vibe-night.jpg";
+
 export const metadata: Metadata = {
   metadataBase: siteMetadataBase(),
   title: "VIBE NIGHT",
@@ -39,7 +41,7 @@ export const metadata: Metadata = {
     description: "Good Vibes Club game night — play, compete, collect badges.",
     url: absoluteUrl("/"),
     siteName: "Vibe Night",
-    images: [{ url: absoluteUrl("/api/og/score?game=Vibe+Night&name=Player&score=0"), width: 1200, height: 630 }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Vibe Night arcade" }],
     locale: "en_US",
     type: "website",
   },
@@ -47,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "VIBE NIGHT",
     description: "Good Vibes Club game night — six arcade titles, one account.",
-    images: [absoluteUrl("/api/og/score?game=Vibe+Night&name=Player&score=0")],
+    images: [OG_IMAGE],
   },
 };
 
