@@ -419,7 +419,7 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
 
   return (
     <div
-      className="relative mx-auto flex min-h-[100dvh] w-full flex-col items-center justify-center overscroll-none px-2 py-4 touch-none"
+      className="relative mx-auto flex min-h-[100dvh] w-full flex-col items-center justify-center overscroll-none px-2 py-4 pb-arcade-player pt-arcade-player touch-none"
       style={{ maxWidth: `min(${MERGE_DISPLAY_MAX_WIDTH}px, calc(100vw - 1rem))` }}
     >
       {phase === "menu" ? (

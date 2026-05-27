@@ -203,7 +203,7 @@ export function moveFromDrag(
   offsetPx: number,
   cs: number
 ): import("./shiftBoard").ShiftMove | null {
-  if (Math.abs(offsetPx) < cs * 0.2) return null;
+  if (Math.abs(offsetPx) < cs * 0.12) return null;
   const dir: 1 | -1 = offsetPx > 0 ? 1 : -1;
   return { axis, index, dir };
 }

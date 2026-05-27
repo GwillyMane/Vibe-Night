@@ -1252,7 +1252,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
 
   return (
     <div
-      className={`relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-3 pb-2 pt-[max(0.25rem,env(safe-area-inset-top))] sm:max-w-xl md:max-w-2xl ${boardHidden ? "justify-center" : ""}`}
+      className={`relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-3 pb-arcade-player pt-arcade-player sm:max-w-xl md:max-w-2xl ${boardHidden ? "justify-center" : ""}`}
     >
       {!boardHidden ? (
         <div className="pointer-events-none fixed inset-0 z-[1] bg-black/58 sm:bg-black/45" aria-hidden />

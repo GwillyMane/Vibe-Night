@@ -88,6 +88,8 @@ async function animateFall(duration: number, onFrame: (t: number) => void): Prom
 export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
   const { user } = useAuth();
   const [phase, setPhase] = useState<ShiftPhase>("menu");
+  const phaseRef = useRef<ShiftPhase>("menu");
+  phaseRef.current = phase;
   const [mode, setMode] = useState<ShiftMode>("classic");
   const [run, setRun] = useState<ShiftRunState | null>(null);
   const runRef = useRef<ShiftRunState | null>(null);
@@ -295,9 +297,9 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
   };
 
   const handleShift = useCallback(
-    async (move: ShiftMove) => {
+    (move: ShiftMove): boolean => {
       const state = runRef.current;
-      if (!state || phase !== "playing" || resolvingRef.current) return;
+      if (!state || phaseRef.current !== "playing" || resolvingRef.current) return false;
 
       playShiftSlide(muted);
       const { state: next, reverted, steps } = applyPlayerMoveWithSteps(state, move);
@@ -308,30 +310,34 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
         playShiftRevert(muted);
         setReverting(true);
         window.setTimeout(() => setReverting(false), 300);
-        return;
+        return true;
       }
 
       resolvingRef.current = true;
       setPhase("resolving");
 
-      await playCascadeSteps(steps, state.score);
+      void (async () => {
+        await playCascadeSteps(steps, state.score);
 
-      runRef.current = next;
-      setRun({ ...next });
-      setDisplayBoard(null);
-      setDisplayScore(next.score);
-      resolvingRef.current = false;
+        runRef.current = next;
+        setRun({ ...next });
+        setDisplayBoard(null);
+        setDisplayScore(next.score);
+        resolvingRef.current = false;
 
-      if (next.phase === "levelUp") {
-        playShiftLevelUp(muted);
-        setPhase("levelUp");
-      } else if (next.phase === "ended") {
-        void finishRun(next);
-      } else {
-        setPhase("playing");
-      }
+        if (next.phase === "levelUp") {
+          playShiftLevelUp(muted);
+          setPhase("levelUp");
+        } else if (next.phase === "ended") {
+          void finishRun(next);
+        } else {
+          setPhase("playing");
+        }
+      })();
+
+      return true;
     },
-    [phase, muted, playCascadeSteps, finishRun]
+    [muted, playCascadeSteps, finishRun]
   );
 
   const continueLevel = () => {
@@ -377,6 +383,7 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
 
   if (phase === "menu") {
     return (
+      <div className="flex min-h-[100dvh] items-center justify-center px-3 pb-arcade-player pt-arcade-player">
       <>
         {showCoach && (
           <FirstRunCoachOverlay
@@ -421,12 +428,13 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
         </GameModal>
         <ShiftSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} muted={muted} onToggleMute={toggleMute} />
       </>
+      </div>
     );
   }
 
   if (phase === "gameover" && run) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-4 py-8">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-4 py-8 pb-arcade-player pt-arcade-player">
         <ShiftResultScreen
           mode={mode}
           score={finalScore}
@@ -447,7 +455,7 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
   }
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col gap-3 px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col gap-3 px-3 py-4 pb-arcade-player pt-arcade-player sm:pt-4">
       <ShiftHud mode={mode} score={scoreToShow} level={run?.level ?? 1} movesUsed={run?.movesUsed ?? 0} scorePulse={phase === "resolving"} />
       <p className="text-center font-body text-xs text-white/45">
         Drag rows, columns · match 3+ lines or 2×2 squares

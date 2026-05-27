@@ -580,7 +580,7 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
   const best = mode === "daily" ? persisted.bestDaily : persisted.bestClassic;
 
   return (
-    <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col items-center justify-center px-2 py-4 pb-[env(safe-area-inset-bottom)]">
+    <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col items-center justify-center px-2 py-4 pb-arcade-player pt-arcade-player">
       {phase === "menu" ? (
         <CatchTitleScreen
           muted={muted}

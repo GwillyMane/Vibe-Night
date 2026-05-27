@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { playUiClick } from "@/lib/sounds";
+import { ArcadeOverlayPortal } from "@/components/arcade/ArcadeOverlayPortal";
 import {
   arcadeBackdropClass,
   arcadeCloseBtnClass,
@@ -30,34 +31,21 @@ export function GameModal({ open, onClose, title, subtitle, muted, children, tal
   };
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          className={`${arcadeBackdropClass} pointer-events-auto`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.button
-            type="button"
-            className="absolute inset-0 z-0 cursor-default bg-black/75 backdrop-blur-sm"
-            aria-label="Close"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={close}
-          />
-          <motion.div
-            initial={{ y: 48, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 36, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className={`relative z-10 w-full max-w-lg ${arcadePanelClass} ${tall ? "sm:max-h-[min(94dvh,900px)]" : ""}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="game-modal-title"
-            onClick={(e) => e.stopPropagation()}
-          >
+    <ArcadeOverlayPortal>
+      <AnimatePresence>
+        {open ? (
+          <div className={`${arcadeBackdropClass} pointer-events-auto`} onClick={close}>
+            <motion.div
+              initial={{ y: 48, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 36, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 30 }}
+              className={`relative z-10 w-full max-w-lg ${arcadePanelClass} ${tall ? "sm:max-h-[min(94dvh,900px)]" : ""}`}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="game-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
             <div className={arcadeHeaderRow}>
               <div className="min-w-0 text-left">
                 <h2 id="game-modal-title" className={arcadeTitleClass}>
@@ -70,9 +58,10 @@ export function GameModal({ open, onClose, title, subtitle, muted, children, tal
               </button>
             </div>
             <div className="max-h-[min(70dvh,560px)] overflow-y-auto overscroll-contain pr-0.5">{children}</div>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+    </ArcadeOverlayPortal>
   );
 }

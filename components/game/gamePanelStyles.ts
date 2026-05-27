@@ -1,9 +1,9 @@
 /** Shared arcade panel chrome — modals, sheets, pause. */
 export const arcadeBackdropClass =
-  "fixed inset-0 z-[90] flex items-end justify-center bg-black/80 p-0 backdrop-blur-md sm:items-center sm:p-5";
+  "fixed inset-0 z-[110] flex items-end justify-center bg-[#050505] p-0 sm:items-center sm:p-5";
 
 export const arcadePanelClass =
-  "relative z-10 w-full max-w-lg overflow-hidden rounded-t-3xl border border-gvc-gold/25 border-b-0 bg-[#0c0c0c]/96 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6 shadow-[0_-32px_100px_rgba(0,0,0,0.85)] sm:max-h-[min(92dvh,820px)] sm:rounded-3xl sm:border-b sm:pb-6 card-glow";
+  "relative z-10 w-full max-w-lg overflow-hidden rounded-t-3xl border border-gvc-gold/25 border-b-0 bg-[#0a0a0a] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-6 shadow-[0_-32px_100px_rgba(0,0,0,0.95)] sm:max-h-[min(92dvh,820px)] sm:rounded-3xl sm:border-b sm:pb-6 card-glow";
 
 export const arcadeTitleShellClass =
   "relative z-30 mx-auto flex w-full max-w-md flex-col gap-4 overflow-hidden rounded-3xl border border-gvc-gold/20 bg-[#0a0a0a] px-6 py-8 shadow-[0_0_80px_rgba(0,0,0,0.92)] card-glow isolate";

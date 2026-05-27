@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { playUiClick } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
 import { VIBE_NIGHT } from "@/lib/brand";
+import { ArcadeOverlayPortal } from "@/components/arcade/ArcadeOverlayPortal";
 import { arcadeBackdropClass, arcadeCloseBtnClass, arcadeHeaderRow, arcadePanelClass, arcadeTitleClass, arcadeTabBtn, arcadeTabRow } from "./gamePanelStyles";
 
 export type AuthModalTab = "login" | "register";
@@ -48,23 +49,19 @@ export function AuthModal({
 
   if (!dbConfigured) {
     return (
-      <AnimatePresence>
-        {open ? (
-          <motion.div
-            className={`${arcadeBackdropClass} pointer-events-auto z-[95]`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.button type="button" className="absolute inset-0 z-0 bg-black/75 backdrop-blur-sm" aria-label="Close" onClick={close} />
-            <motion.div
-              initial={{ y: 40, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 30, opacity: 0 }}
-              className={`relative z-10 w-full max-w-lg ${arcadePanelClass}`}
-              role="dialog"
-              aria-modal="true"
-            >
+      <ArcadeOverlayPortal>
+        <AnimatePresence>
+          {open ? (
+            <div className={`${arcadeBackdropClass} pointer-events-auto`} onClick={close}>
+              <motion.div
+                initial={{ y: 40, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 30, opacity: 0 }}
+                className={`relative z-10 w-full max-w-lg ${arcadePanelClass}`}
+                role="dialog"
+                aria-modal="true"
+                onClick={(ev) => ev.stopPropagation()}
+              >
               <div className={arcadeHeaderRow}>
                 <h2 className={arcadeTitleClass}>Accounts</h2>
                 <button type="button" className={arcadeCloseBtnClass} onClick={close} aria-label="Close">
@@ -76,9 +73,10 @@ export function AuthModal({
                 server — you can still play as a guest locally.
               </p>
             </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            </div>
+          ) : null}
+        </AnimatePresence>
+      </ArcadeOverlayPortal>
     );
   }
 
@@ -117,24 +115,19 @@ export function AuthModal({
   };
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          className={`${arcadeBackdropClass} pointer-events-auto z-[95]`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <motion.button type="button" className="absolute inset-0 z-0 bg-black/75 backdrop-blur-sm" aria-label="Close" onClick={close} />
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            className={`relative z-10 w-full max-w-lg ${arcadePanelClass}`}
-            role="dialog"
-            aria-modal="true"
-            onClick={(ev) => ev.stopPropagation()}
-          >
+    <ArcadeOverlayPortal>
+      <AnimatePresence>
+        {open ? (
+          <div className={`${arcadeBackdropClass} pointer-events-auto`} onClick={close}>
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 30, opacity: 0 }}
+              className={`relative z-10 w-full max-w-lg ${arcadePanelClass}`}
+              role="dialog"
+              aria-modal="true"
+              onClick={(ev) => ev.stopPropagation()}
+            >
             <div className={arcadeHeaderRow}>
               <div>
                 <h2 className={arcadeTitleClass}>{title}</h2>
@@ -220,9 +213,10 @@ export function AuthModal({
                 </button>
               </form>
             )}
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+            </motion.div>
+          </div>
+        ) : null}
+      </AnimatePresence>
+    </ArcadeOverlayPortal>
   );
 }

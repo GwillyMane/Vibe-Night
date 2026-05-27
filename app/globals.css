@@ -11,8 +11,8 @@
   --color-gvc-orange: #FF5F1F;
   --color-gvc-green: #2EFF2E;
   /* Reserve space above fixed bottom mini player (height + offset + safe area) */
-  --arcade-mini-player-clearance: calc(4.75rem + max(0.75rem, env(safe-area-inset-bottom)));
-  --arcade-mini-player-top-clearance: calc(3.5rem + max(0.5rem, env(safe-area-inset-top)));
+  --arcade-mini-player-clearance: calc(5rem + max(0.75rem, env(safe-area-inset-bottom)));
+  --arcade-mini-player-top-clearance: max(0.5rem, env(safe-area-inset-top));
 }
 
 /* ---------------------------------- */

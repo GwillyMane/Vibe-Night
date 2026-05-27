@@ -37,7 +37,7 @@ export function ArcadeMusicPlayer() {
     <>
       {!expanded ? (
         <div
-          className="pointer-events-none fixed left-1/2 top-[max(0.5rem,env(safe-area-inset-top))] z-[85] w-[min(calc(100%-1.5rem),280px)] -translate-x-1/2 md:bottom-[max(0.75rem,env(safe-area-inset-bottom))] md:left-auto md:right-4 md:top-auto md:w-auto md:max-w-[280px] md:translate-x-0"
+          className="pointer-events-none fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-[70] w-[min(calc(100%-1.5rem),280px)] -translate-x-1/2 sm:left-auto sm:right-4 sm:w-auto sm:max-w-[280px] sm:translate-x-0"
           aria-live="polite"
         >
           <div className="pointer-events-auto">

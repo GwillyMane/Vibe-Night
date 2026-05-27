@@ -12,7 +12,7 @@ import {
 } from "@/lib/vibe-shift/shiftPaint";
 import { SHIFT_BOARD_SIZE } from "@/lib/vibe-shift/shiftConfig";
 
-const AXIS_LOCK_PX = 10;
+const AXIS_LOCK_PX = 6;
 const SNAP_MS = 180;
 const REVERT_MS = 260;
 
@@ -46,7 +46,7 @@ export interface ShiftBoardCanvasProps {
   fallProgress?: number | null;
   falls?: import("@/lib/vibe-shift/shiftGravity").FallMove[] | null;
   fallBoard?: Board | null;
-  onShift: (move: ShiftMove) => void;
+  onShift: (move: ShiftMove) => boolean;
 }
 
 export function ShiftBoardCanvas({
@@ -290,10 +290,27 @@ export function ShiftBoardCanvas({
       to: target,
       duration: SNAP_MS,
       onDone: () => {
+        const accepted = onShiftRef.current(move);
+        if (!accepted) {
+          startAnim({
+            axis,
+            index,
+            from: target,
+            to: 0,
+            duration: SNAP_MS,
+            onDone: () => {
+              busyRef.current = false;
+            },
+          });
+          return;
+        }
         committedRef.current = { axis, index, offsetPx: target };
-        onShiftRef.current(move);
       },
     });
+  };
+
+  const onPointerCancel = () => {
+    onPointerUp();
   };
 
   return (
@@ -302,10 +319,12 @@ export function ShiftBoardCanvas({
       width={SHIFT_BOARD_SIZE}
       height={SHIFT_BOARD_SIZE}
       className="aspect-square w-full max-h-[min(72vh,88vw)] cursor-grab touch-none select-none rounded-2xl border border-gvc-gold/20 shadow-lg active:cursor-grabbing"
+      style={{ touchAction: "none" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onPointerUp}
       aria-label="Vibe Shift game board — drag a row or column to shift"
     />
   );
