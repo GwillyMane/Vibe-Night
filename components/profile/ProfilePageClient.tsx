@@ -7,7 +7,7 @@ import { Pencil, Share2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import toast from "react-hot-toast";
 import type { PublicProfile } from "@/lib/profile/types";
-import { PROFILE_PAGE_SHELL } from "@/lib/profile/profileStyles";
+import { PROFILE_NAV_BAR, PROFILE_NAV_LINK, PROFILE_PAGE_SHELL } from "@/lib/profile/profileStyles";
 import { rewardBadgeUrlForKey } from "@/lib/gvcRewardBadges";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileHero } from "./ProfileHero";
@@ -71,16 +71,9 @@ export function ProfilePageClient({ profile }: { profile: PublicProfile }) {
 
   return (
     <div className={PROFILE_PAGE_SHELL}>
-      <main className="relative mx-auto max-w-lg px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-5 sm:max-w-xl">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-[#2a2a2a] bg-[#141414] px-3 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
-        >
-          <Link
-            href="/"
-            className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[#c4c4c4] transition hover:text-gvc-gold"
-          >
+      <main className="relative mx-auto max-w-lg px-4 pb-arcade-player pt-5 sm:max-w-xl">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={PROFILE_NAV_BAR}>
+          <Link href="/" className={PROFILE_NAV_LINK}>
             ← Vibe Night
           </Link>
           <div className="flex gap-2">

@@ -100,6 +100,20 @@ export function createMergeBody(x: number, y: number, tier: MergeTierId): Matter
   return body;
 }
 
+export function restoreMergeStack(
+  world: CreatedMergeWorld,
+  pieces: Array<{ tier: MergeTierId; x: number; y: number; angle: number }>
+): void {
+  for (const p of pieces) {
+    const body = createMergeBody(p.x, p.y, p.tier);
+    Matter.Body.setAngle(body, p.angle);
+    const plugin = body.plugin as MergePiecePlugin;
+    plugin.droppedAt = performance.now() - SETTLE_GRACE_MS - 1;
+    Matter.Composite.add(world.engine.world, body);
+    world.pieces.push(body);
+  }
+}
+
 export function createMergeWorld(): CreatedMergeWorld {
   const engine = Matter.Engine.create({
     enableSleeping: true,

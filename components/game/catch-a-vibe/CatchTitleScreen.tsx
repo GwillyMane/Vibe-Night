@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ArcadeDailyHeroPanel } from "@/components/arcade/ArcadeDailyHeroPanel";
 import { ArcadeSecondaryGrid } from "@/components/arcade/ArcadeSecondaryGrid";
@@ -22,6 +22,7 @@ export function CatchTitleScreen({
   onCollection,
   onSettings,
   onBack,
+  resume,
 }: {
   muted: boolean;
   playBackgroundId: string;
@@ -34,6 +35,7 @@ export function CatchTitleScreen({
   onCollection: () => void;
   onSettings: () => void;
   onBack?: () => void;
+  resume?: ReactNode;
 }) {
   const daily = useMemo(() => readTitleDailyStats("catch-a-vibe"), []);
 
@@ -77,6 +79,7 @@ export function CatchTitleScreen({
         <CatchBackgroundPicker selectedId={playBackgroundId} muted={muted} onSelect={onSelectBackground} />
       }
     >
+      {resume}
       <ArcadeDailyHeroPanel
         challengeLabel="Today's catch"
         headline="90-second seeded run"

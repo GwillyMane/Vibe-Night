@@ -1,5 +1,5 @@
 import { GVC_LIBRARY_FACE_URLS } from "@/lib/assets/gvcLibraryFaces";
-import { imageUrlForToken, loadGvcMetadata } from "@/lib/assets/gvcMetadata";
+import { imageUrlForToken, loadTokensMetadata } from "@/lib/assets/gvcMetadata";
 import {
   FEATURE_SYMBOL_NAMES,
   LUCKY_SPINS_SYMBOL_URL,
@@ -46,7 +46,7 @@ export async function preloadLuckyAssets(): Promise<Map<SymbolId, SymbolAsset>> 
     await loadImage(url).catch(() => undefined);
   }
 
-  const meta = await loadGvcMetadata();
+  const meta = await loadTokensMetadata([...PREMIUM_TOKEN_IDS]);
   for (const id of PREMIUM_TOKEN_IDS) {
     const sym = `token:${id}` as SymbolId;
     const m = meta[id];

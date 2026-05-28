@@ -1,8 +1,8 @@
 "use client";
 
-import toast from "react-hot-toast";
 import { ArcadeResultShell } from "@/components/arcade/ArcadeResultShell";
-import { buildArcadeShareTextWithOg, copyShareText, twitterIntent } from "@/lib/arcade/share";
+import { useArcadeShare } from "@/hooks/useArcadeShare";
+import { defaultShowSignIn } from "@/lib/arcade/postRunProps";
 import { tierDef } from "@/lib/vibe-merge/mergeConfig";
 
 const MERGE_END_COPY = {
@@ -21,9 +21,12 @@ export function MergeResultScreen({
   isNewBest,
   muted,
   signedIn,
+  serverRank,
+  newAchievementSlugs,
   onRetry,
   onMenu,
   onSignIn,
+  onOpenLeaderboard,
 }: {
   score: number;
   best: number;
@@ -34,22 +37,21 @@ export function MergeResultScreen({
   isNewBest: boolean;
   muted: boolean;
   signedIn: boolean;
+  serverRank?: number | null;
+  newAchievementSlugs?: string[];
   onRetry: () => void;
   onMenu: () => void;
   onSignIn?: () => void;
+  onOpenLeaderboard?: () => void;
 }) {
   const tierName = tierDef(highestTier).name;
-  const shareText = buildMergeShareText(score, highestTier);
 
-  const share = () => {
-    window.open(twitterIntent(shareText), "_blank", "noopener,noreferrer");
-  };
-
-  const copyScore = async () => {
-    const ok = await copyShareText(shareText);
-    if (ok) toast.success("Score copied — paste it anywhere.", { duration: 2000 });
-    else toast.error("Could not copy", { duration: 2000 });
-  };
+  const { shareToTwitter, copyScore } = useArcadeShare({
+    muted,
+    gameId: "vibe-merge",
+    score,
+    lines: [`Highest vibe: ${tierName}`],
+  });
 
   return (
     <ArcadeResultShell
@@ -73,13 +75,16 @@ export function MergeResultScreen({
       ]}
       isNewBest={isNewBest}
       isLoggedIn={signedIn}
-      showSignIn={!signedIn}
+      serverRank={serverRank}
+      showSignIn={defaultShowSignIn(signedIn, true)}
       onOpenAuth={onSignIn}
+      newAchievementSlugs={newAchievementSlugs}
       badgeGameId="vibe-merge"
       onRetry={onRetry}
       retryLabel="One more run"
-      onShare={share}
+      onShare={shareToTwitter}
       onCopy={() => void copyScore()}
+      onOpenLeaderboard={onOpenLeaderboard}
       onMenu={onMenu}
     />
   );
@@ -87,9 +92,5 @@ export function MergeResultScreen({
 
 export function buildMergeShareText(score: number, highestTier: number): string {
   const tierName = tierDef(highestTier).name;
-  return buildArcadeShareTextWithOg({
-    gameId: "vibe-merge",
-    score,
-    lines: [`Highest vibe: ${tierName}`],
-  });
+  return `Highest vibe: ${tierName}\nScore: ${score.toLocaleString()}`;
 }

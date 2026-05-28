@@ -7,6 +7,7 @@ import { ArcadeResumePrompt } from "@/components/arcade/ArcadeResumePrompt";
 import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/arcade/onboarding";
 import { bumpNightStreakLoggedIn } from "@/lib/arcade/nightStreakClient";
 import { useAuth } from "@/hooks/useAuth";
+import { submitArcadeScore } from "@/hooks/usePostRun";
 import { useArcadeAudioZone } from "@/hooks/useArcadeAudioZone";
 import type { SymbolAsset } from "@/lib/lucky-vibes/luckyAssets";
 import { preloadLuckyAssets } from "@/lib/lucky-vibes/luckyAssets";
@@ -61,9 +62,8 @@ import {
   type LuckyPersisted,
 } from "@/lib/lucky-vibes/luckyStorage";
 import { playUiClick } from "@/lib/sounds";
-import type { AchievementDef } from "@/lib/achievements";
-import { showAchievementToasts } from "../AchievementToast";
 import { GameModal } from "../GameModal";
+import { AuthModal } from "../AuthModal";
 import { LuckyGoalsPanel } from "./LuckyGoalsPanel";
 import { LuckyCabinetFrame } from "./LuckyCabinetFrame";
 import { LuckyHud, LuckySpinButton } from "./LuckyHud";
@@ -136,6 +136,9 @@ export default function LuckyVibesGame({ onExitToLibrary }: LuckyVibesGameProps)
   const [paytableOpen, setPaytableOpen] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [pendingResume, setPendingResume] = useState<LuckyResumeSnapshot | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [serverRank, setServerRank] = useState<number | null>(null);
+  const [resultAchSlugs, setResultAchSlugs] = useState<string[]>([]);
 
   const muted = persisted.soundMuted;
 
@@ -230,8 +233,9 @@ export default function LuckyVibesGame({ onExitToLibrary }: LuckyVibesGameProps)
           ...nextPersisted,
           achievements: [...nextPersisted.achievements, ...newAch.map((a) => a.slug)],
         };
-        showAchievementToasts(newAch as AchievementDef[], "lucky-vibes");
       }
+      setResultAchSlugs(newAch.map((a) => a.slug));
+      setServerRank(null);
 
       const bestBefore = state.mode === "daily" ? persisted.bestDaily : persisted.bestClassic;
       setIsNewBest(score > bestBefore && state.mode !== "zen");
@@ -242,27 +246,21 @@ export default function LuckyVibesGame({ onExitToLibrary }: LuckyVibesGameProps)
       saveLuckyResumeSnapshot(null);
 
       if (user && state.mode !== "zen") {
-        try {
-          await fetch("/api/scores", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              gameId: LUCKY_GAME_ID,
-              levelId: LUCKY_LEVEL_ID,
-              mode: state.mode,
-              seed: state.seed,
-              score,
-              stars: 0,
-              shotsUsed: state.spinsUsed,
-              shotsTotal: state.maxSpins,
-              moves_json: serializeMoves(state.moves),
-              won: true,
-            }),
-          });
-        } catch {
-          /* ignore */
-        }
+        const { rank } = await submitArcadeScore({
+          gameId: LUCKY_GAME_ID,
+          levelId: LUCKY_LEVEL_ID,
+          mode: state.mode,
+          seed: state.seed,
+          score,
+          stars: 0,
+          shotsUsed: state.spinsUsed,
+          shotsTotal: state.maxSpins,
+          moves_json: serializeMoves(state.moves),
+          won: true,
+          run_hash: typeof crypto !== "undefined" ? crypto.randomUUID() : `l-${Date.now()}`,
+          client_version: "vibe-sling@0.1.0",
+        });
+        setServerRank(rank);
       }
 
       setUiPhase("gameover");
@@ -630,6 +628,11 @@ export default function LuckyVibesGame({ onExitToLibrary }: LuckyVibesGameProps)
           grandVibe={run.featureStats.grandVibe}
           isNewBest={isNewBest}
           muted={muted}
+          isLoggedIn={!!user}
+          serverRank={serverRank}
+          newAchievementSlugs={resultAchSlugs}
+          onOpenAuth={() => setAuthOpen(true)}
+          onOpenLeaderboard={() => setLeadersOpen(true)}
           onRestart={() => startRun(mode)}
           onMenu={() => {
             setUiPhase("menu");
@@ -638,12 +641,13 @@ export default function LuckyVibesGame({ onExitToLibrary }: LuckyVibesGameProps)
             setPendingResume(loadLuckyResumeSnapshot());
           }}
         />
+        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} muted={muted} title="Lucky Vibes" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-arcade-player md:pb-arcade-player md:pt-4">
+    <div className="mx-auto flex min-h-[100dvh] max-w-lg flex-col px-3 pb-arcade-player pt-arcade-player sm:pt-4">
       {winOverlay ? <LuckyWinOverlay tier={winOverlay.tier} amount={winOverlay.amount} /> : null}
       <LuckySpinsTransition
         phase={luckyTransition}

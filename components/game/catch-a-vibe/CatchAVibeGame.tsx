@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { submitArcadeScore } from "@/hooks/usePostRun";
 import type { AchievementDef } from "@/lib/achievements";
-import { showAchievementToasts } from "../AchievementToast";
 import { GameModal } from "../GameModal";
 import { AuthModal } from "../AuthModal";
 import { CatchTitleScreen } from "./CatchTitleScreen";
@@ -102,6 +102,13 @@ import { FirstRunCoachOverlay } from "@/components/arcade/FirstRunCoachOverlay";
 import { hasCompletedOnboarding } from "@/lib/arcade/onboarding";
 import { bumpNightStreakLoggedIn } from "@/lib/arcade/nightStreakClient";
 import { useArcadeAudioZone } from "@/hooks/useArcadeAudioZone";
+import { ArcadeResumePrompt } from "@/components/arcade/ArcadeResumePrompt";
+import {
+  catchResumeDetail,
+  loadCatchResumeSnapshot,
+  saveCatchResume,
+  type CatchResumeSnapshot,
+} from "@/lib/catch-a-vibe/catchResume";
 
 export type CatchPhase = "menu" | "playing" | "paused" | "gameover";
 export type CatchMode = "classic" | "daily" | "zen";
@@ -169,6 +176,9 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [pendingResume, setPendingResume] = useState<CatchResumeSnapshot | null>(null);
+  const [serverRank, setServerRank] = useState<number | null>(null);
+  const [resultAchSlugs, setResultAchSlugs] = useState<string[]>([]);
 
   const muted = persisted.soundMuted;
   mutedRef.current = muted;
@@ -178,6 +188,7 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
   useEffect(() => {
     void preloadCatchFaces();
     void preloadMergeBackgrounds();
+    setPendingResume(loadCatchResumeSnapshot());
   }, []);
 
   const selectPlayBackground = useCallback((id: string) => {
@@ -313,8 +324,48 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
     [mode, syncHud]
   );
 
+  const buildCatchSnapshot = useCallback((): CatchResumeSnapshot | null => {
+    if (phase !== "playing" && phase !== "paused") return null;
+    if (mode === "zen") return null;
+    if (!spawnRef.current) return null;
+    const elapsedMs = runStart ? performance.now() - runStart : 0;
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      mode,
+      dailySeed,
+      runSeed: runSeedRef.current,
+      runStart,
+      elapsedMs,
+      score: scoreRef.current,
+      combo: comboRef.current.count,
+      maxCombo: comboRef.current.maxCombo,
+      comboState: { ...comboRef.current },
+      bloomChains: bloomChainsRef.current,
+      goldenCatches: goldenCatchesRef.current,
+      survivalAcc: survivalAccRef.current,
+      run: { ...runRef.current },
+      entities: entitiesRef.current.map((e) => ({ ...e })),
+      spawn: {
+        nextSpawnAt: spawnRef.current.nextSpawnAt,
+        intervalMs: spawnRef.current.intervalMs,
+        startInterval: spawnRef.current.startInterval,
+      },
+    };
+  }, [phase, mode, dailySeed, runStart]);
+
+  useEffect(() => {
+    if (phase !== "playing" && phase !== "paused") return;
+    const id = window.setInterval(() => {
+      const snap = buildCatchSnapshot();
+      if (snap) saveCatchResume(snap);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [phase, buildCatchSnapshot]);
+
   const endGame = useCallback(
     async (reason: CatchEndReason) => {
+      saveCatchResume(null);
       if (phase === "gameover") return;
       playCatchGameOver(mutedRef.current);
 
@@ -345,8 +396,9 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
           ...nextPersisted,
           achievements: [...nextPersisted.achievements, ...newAch.map((a) => a.slug)],
         };
-        showAchievementToasts(newAch as AchievementDef[], "catch-a-vibe");
       }
+      setResultAchSlugs(newAch.map((a) => a.slug));
+      setServerRank(null);
       setPersisted(nextPersisted);
       saveCatchPersisted(nextPersisted);
 
@@ -354,34 +406,31 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
       setIsNewBest(mode !== "zen" && finalScore >= best && finalScore > 0);
 
       if (user && mode !== "zen") {
-        try {
-          await fetch("/api/scores", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              gameId: CATCH_GAME_ID,
-              mode,
-              levelId: CATCH_LEVEL_ID,
-              seed: mode === "daily" ? dailySeed : runSeedRef.current,
-              score: finalScore,
-              stars: 0,
-              shotsUsed: stats.catches,
-              shotsTotal: runRef.current.misses,
-              won: true,
-              moves_json: JSON.stringify({
-                survivalMs: Math.floor(survivalMs),
-                longestCombo: stats.maxCombo,
-                bloomChains: stats.bloomChains,
-                badDodged: stats.badDodged,
-                badStrikes: runRef.current.badStrikes,
-                seed: mode === "daily" ? dailySeed : runSeedRef.current,
-              }),
-            }),
-          });
-        } catch {
-          /* local ok */
-        }
+        const { rank } = await submitArcadeScore({
+          gameId: CATCH_GAME_ID,
+          mode,
+          levelId: CATCH_LEVEL_ID,
+          seed: mode === "daily" ? dailySeed : runSeedRef.current,
+          score: finalScore,
+          stars: 0,
+          shotsUsed: stats.catches,
+          shotsTotal: runRef.current.misses,
+          won: true,
+          moves_json: JSON.stringify({
+            survivalMs: Math.floor(survivalMs),
+            catches: stats.catches,
+            totalCatches: stats.catches,
+            maxCombo: stats.maxCombo,
+            combo: stats.maxCombo,
+            bloomChains: stats.bloomChains,
+            badDodged: stats.badDodged,
+            badStrikes: runRef.current.badStrikes,
+            seed: mode === "daily" ? dailySeed : runSeedRef.current,
+          }),
+          run_hash: typeof crypto !== "undefined" ? crypto.randomUUID() : `c-${Date.now()}`,
+          client_version: "vibe-sling@0.1.0",
+        });
+        setServerRank(rank);
       }
 
       entitiesRef.current = [];
@@ -393,6 +442,7 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
   endGameRef.current = endGame;
 
   const startRun = useCallback((m: CatchMode) => {
+    saveCatchResume(null);
     const seed = catchRunSeed(m);
     const daily = catchDailySeed();
     runSeedRef.current = seed;
@@ -579,6 +629,50 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
 
   const best = mode === "daily" ? persisted.bestDaily : persisted.bestClassic;
 
+  const resumeRun = useCallback(() => {
+    const snap = pendingResume ?? loadCatchResumeSnapshot();
+    if (!snap) return;
+    playUiClick(muted);
+    saveCatchResume(null);
+    runSeedRef.current = snap.runSeed;
+    setDailySeed(snap.dailySeed);
+    entitiesRef.current = snap.entities.map((e) => ({ ...e }));
+    trailRef.current = createSwipeTrail();
+    comboRef.current = { ...snap.comboState };
+    runRef.current = { ...snap.run };
+    floatsRef.current = [];
+    burstsRef.current = [];
+    particlesRef.current = [];
+    shockwavesRef.current = [];
+    motesRef.current = [];
+    shakeRef.current = 0;
+    calmPulseRef.current = 0;
+    hitStopRef.current = 0;
+    caughtThisSwipeRef.current = new Set();
+    bloomChainsRef.current = snap.bloomChains;
+    goldenCatchesRef.current = snap.goldenCatches;
+    survivalAccRef.current = snap.survivalAcc;
+    scoreRef.current = snap.score;
+    warnedBadRef.current = false;
+    spawnRef.current = {
+      ...snap.spawn,
+      rand: catchSpawnRand(snap.runSeed),
+    };
+    setMode(snap.mode);
+    setScore(snap.score);
+    setCombo(snap.combo);
+    setMaxCombo(snap.maxCombo);
+    setBadStrikes(snap.run.badStrikes);
+    setRunStart(performance.now() - snap.elapsedMs);
+    setPendingResume(null);
+    setPhase("playing");
+  }, [muted, pendingResume]);
+
+  const discardResume = useCallback(() => {
+    saveCatchResume(null);
+    setPendingResume(null);
+  }, []);
+
   return (
     <div className="relative mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col items-center justify-center px-2 py-4 pb-arcade-player pt-arcade-player">
       {phase === "menu" ? (
@@ -594,6 +688,17 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
           onCollection={() => setCollectionOpen(true)}
           onSettings={() => setSettingsOpen(true)}
           onBack={onExitToLibrary}
+          resume={
+            pendingResume ? (
+              <ArcadeResumePrompt
+                label="Resume catch"
+                detail={catchResumeDetail(pendingResume)}
+                muted={muted}
+                onResume={resumeRun}
+                onDiscard={discardResume}
+              />
+            ) : undefined
+          }
         />
       ) : null}
 
@@ -651,8 +756,10 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
             type="button"
             onClick={() => {
               playUiClick(muted);
-              entitiesRef.current = [];
+              const snap = buildCatchSnapshot();
+              if (snap) saveCatchResume(snap);
               setPhase("menu");
+              setPendingResume(loadCatchResumeSnapshot());
             }}
             className="w-full rounded-xl border border-white/15 py-3 font-display text-sm font-bold uppercase text-white/70"
           >
@@ -675,9 +782,15 @@ export default function CatchAVibeGame({ onExitToLibrary }: CatchAVibeGameProps)
           isNewBest={isNewBest}
           muted={muted}
           signedIn={!!user}
+          serverRank={serverRank}
+          newAchievementSlugs={resultAchSlugs}
           onRetry={() => startRun(mode)}
-          onMenu={() => setPhase("menu")}
+          onMenu={() => {
+            setPhase("menu");
+            setPendingResume(loadCatchResumeSnapshot());
+          }}
           onSignIn={() => setAuthOpen(true)}
+          onOpenLeaderboard={() => setLeadersOpen(true)}
         />
       ) : null}
 

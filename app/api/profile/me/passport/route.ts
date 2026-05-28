@@ -4,7 +4,7 @@ import { recordActivity } from "@/lib/profile/activity";
 import { fetchProfileMe, savePassportUrl } from "@/lib/profile/queries";
 import { resolveAppOrigin } from "@/lib/passport/appUrl";
 import { renderPassportImage } from "@/lib/passport/renderPassportImage";
-import { rateLimitAllow } from "@/lib/rateLimit";
+import { rateLimitCheck } from "@/lib/rateLimit";
 import { getCurrentUserFromRequest } from "@/lib/session";
 import { supabaseConfigured } from "@/lib/supabase/client";
 import { uploadPassport } from "@/lib/supabase/storage";
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!rateLimitAllow(`passport:${user.id}`, 1, 30_000)) {
+  if (!(await rateLimitCheck(`passport:${user.id}`, 1, 30_000))) {
     return NextResponse.json({ error: "Please wait before generating another passport." }, { status: 429 });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import type { GameId } from "@/lib/games/catalog";
@@ -28,39 +28,63 @@ export interface ToastAchievement {
   tier: AchievementTier;
 }
 
-export function showAchievementToasts(unlocked: ToastAchievement[], gameId: GameId = "vibe-crashers") {
+function AchievementToastCard({
+  achievement: a,
+  border,
+  glow,
+  badgeSrc,
+}: {
+  achievement: ToastAchievement;
+  border: string;
+  glow: string;
+  badgeSrc: string | null | undefined;
+}) {
+  const reduced = useReducedMotion();
+
+  return (
+    <motion.div
+      initial={reduced ? false : { x: 48, opacity: 0, scale: 0.94 }}
+      animate={{ x: 0, opacity: 1, scale: 1 }}
+      exit={reduced ? undefined : { x: 36, opacity: 0 }}
+      transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 28 }}
+      className="pointer-events-auto flex max-w-sm gap-3 rounded-2xl border bg-gvc-dark/96 px-4 py-3 shadow-2xl backdrop-blur-md"
+      style={{ borderColor: border, boxShadow: `${glow}, 0 18px 50px rgba(0,0,0,0.65)` }}
+      role="status"
+    >
+      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gvc-gold/30 bg-black/50">
+        <Image
+          src={badgeSrc ?? "/shaka.png"}
+          alt={a.title}
+          fill
+          className="object-cover p-0.5"
+          sizes="48px"
+          unoptimized={Boolean(badgeSrc)}
+        />
+      </div>
+      <div className="min-w-0 text-left">
+        <p className="font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold/85">Badge unlocked</p>
+        <p className="font-display text-lg font-bold leading-tight text-white">{a.title}</p>
+        <p className="mt-0.5 font-body text-sm text-white/60">{a.description}</p>
+        <p className="mt-1.5 font-body text-[10px] uppercase tracking-widest text-white/35">{a.tier}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+export function showAchievementToasts(
+  unlocked: ToastAchievement[],
+  gameId: GameId = "vibe-crashers",
+  excludeSlugs: string[] = [],
+) {
+  const exclude = new Set(excludeSlugs);
   for (const a of unlocked) {
+    if (exclude.has(a.slug)) continue;
     const border = TIER_BORDER[a.tier] ?? TIER_BORDER.bronze;
     const glow = TIER_GLOW[a.tier] ?? TIER_GLOW.bronze;
     const badgeSrc = achievementRewardBadgeUrl(a.slug, gameId);
     toast.custom(
       () => (
-        <motion.div
-          initial={{ x: 48, opacity: 0, scale: 0.94 }}
-          animate={{ x: 0, opacity: 1, scale: 1 }}
-          exit={{ x: 36, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 420, damping: 28 }}
-          className="pointer-events-auto flex max-w-sm gap-3 rounded-2xl border bg-gvc-dark/96 px-4 py-3 shadow-2xl backdrop-blur-md"
-          style={{ borderColor: border, boxShadow: `${glow}, 0 18px 50px rgba(0,0,0,0.65)` }}
-          role="status"
-        >
-          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gvc-gold/30 bg-black/50">
-            <Image
-              src={badgeSrc ?? "/shaka.png"}
-              alt={a.title}
-              fill
-              className="object-cover p-0.5"
-              sizes="48px"
-              unoptimized={Boolean(badgeSrc)}
-            />
-          </div>
-          <div className="min-w-0 text-left">
-            <p className="font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold/85">Badge unlocked</p>
-            <p className="font-display text-lg font-bold leading-tight text-white">{a.title}</p>
-            <p className="mt-0.5 font-body text-sm text-white/60">{a.description}</p>
-            <p className="mt-1.5 font-body text-[10px] uppercase tracking-widest text-white/35">{a.tier}</p>
-          </div>
-        </motion.div>
+        <AchievementToastCard achievement={a} border={border} glow={glow} badgeSrc={badgeSrc} />
       ),
       { duration: 4200, id: `ach-${gameId}-${a.slug}` }
     );

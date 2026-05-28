@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { dbAvailable, ensureTables, getPool } from "@/lib/db";
-import { clientIp, rateLimitAllow } from "@/lib/rateLimit";
+import { clientIp, rateLimitCheck } from "@/lib/rateLimit";
+import { reportError } from "@/lib/observability";
+import { persistClientAchievements } from "@/lib/syncAchievements";
 import { recordActivity, touchLastActive } from "@/lib/profile/activity";
 import type { ArcadeGameSyncPayload } from "@/lib/profile/syncMerge";
 import { titleById } from "@/lib/profile/catalog";
-import { upsertGameStats, fetchProfileMe } from "@/lib/profile/queries";
+import { upsertGameStats, fetchProfileMe, reconcileProfileAchievements } from "@/lib/profile/queries";
 import { evaluateAndPersistUnlocks, ensureProfileRow } from "@/lib/profile/unlocks";
+import { migrateLocalStreak } from "@/lib/profile/streaks";
 import { getCurrentUserFromRequest } from "@/lib/session";
 import type { LifetimeCounters } from "@/lib/storage";
 import type { GameStatsJson } from "@/lib/profile/types";
+import type { GameId } from "@/lib/games/catalog";
 
 export const runtime = "nodejs";
 
@@ -26,16 +30,22 @@ type SyncBody = {
   catchAVibe?: ArcadeGameSyncPayload;
   vibeShift?: ArcadeGameSyncPayload;
   luckyVibes?: ArcadeGameSyncPayload;
+  nightStreak?: { currentStreak: number; longestStreak: number; lastPlayDate: string | null };
 };
 
 async function syncGamePayload(
   client: import("pg").PoolClient,
   userId: string,
-  gameId: string,
+  gameId: GameId,
   payload: ArcadeGameSyncPayload | undefined
 ): Promise<void> {
-  if (!payload?.stats || typeof payload.stats !== "object") return;
-  await upsertGameStats(client as unknown as import("pg").Pool, userId, gameId, payload.stats);
+  if (!payload) return;
+  if (payload.stats && typeof payload.stats === "object") {
+    await upsertGameStats(client as unknown as import("pg").Pool, userId, gameId, payload.stats);
+  }
+  if (payload.achievements?.length) {
+    await persistClientAchievements(client, userId, gameId, payload.achievements);
+  }
 }
 
 function crashersStatsFromBody(body: SyncBody): GameStatsJson {
@@ -70,10 +80,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!rateLimitAllow(`progress:user:${user.id}`, 20, 60_000)) {
+  if (!(await rateLimitCheck(`progress:user:${user.id}`, 20, 60_000))) {
     return NextResponse.json({ error: "Too many sync requests. Try again shortly." }, { status: 429 });
   }
-  if (!rateLimitAllow(`progress:ip:${clientIp(request)}`, 40, 60_000)) {
+  if (!(await rateLimitCheck(`progress:ip:${clientIp(request)}`, 40, 60_000))) {
     return NextResponse.json({ error: "Too many sync requests. Try again shortly." }, { status: 429 });
   }
 
@@ -183,6 +193,10 @@ export async function POST(request: Request) {
 
     await upsertGameStats(pool, user.id, "vibe-crashers", crashersStatsFromBody(body));
 
+    if (body.achievements?.length) {
+      await persistClientAchievements(c, user.id, "vibe-crashers", body.achievements);
+    }
+
     await syncGamePayload(c, user.id, "vibe-merge", body.vibeMerge);
     await syncGamePayload(c, user.id, "vibe-garden", body.vibeGarden);
     await syncGamePayload(c, user.id, "catch-a-vibe", body.catchAVibe);
@@ -206,13 +220,28 @@ export async function POST(request: Request) {
     await c.query("COMMIT");
   } catch (e) {
     await c.query("ROLLBACK").catch(() => undefined);
-    console.error(e);
+    reportError("POST /api/progress/sync", e);
     return NextResponse.json({ error: "Sync failed." }, { status: 500 });
   } finally {
     c.release();
   }
 
+  if (body.nightStreak && typeof body.nightStreak === "object") {
+    const ns = body.nightStreak;
+    await migrateLocalStreak(pool, user.id, {
+      currentStreak: Math.max(0, Math.min(999, Math.floor(Number(ns.currentStreak) || 0))),
+      longestStreak: Math.max(0, Math.min(999, Math.floor(Number(ns.longestStreak) || 0))),
+      lastPlayDate:
+        typeof ns.lastPlayDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(ns.lastPlayDate)
+          ? ns.lastPlayDate
+          : null,
+    }).catch((e) => reportError("POST /api/progress/sync streak", e));
+  }
+
   await touchLastActive(pool, user.id);
+  await reconcileProfileAchievements(pool, user.id).catch((e) =>
+    reportError("POST /api/progress/sync reconcile", e)
+  );
   const unlocks = await evaluateAndPersistUnlocks(pool, user.id);
 
   for (const titleId of unlocks.newTitles) {

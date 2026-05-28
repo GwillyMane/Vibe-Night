@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { submitArcadeScore } from "@/hooks/usePostRun";
 import type { AchievementDef } from "@/lib/achievements";
-import { showAchievementToasts } from "../AchievementToast";
 import { GameModal } from "../GameModal";
 import { AuthModal } from "../AuthModal";
 import { GardenTitleScreen } from "./GardenTitleScreen";
@@ -36,6 +36,7 @@ import {
   plantEntity,
   addEntityDirect,
   markCorrupted,
+  pluginOf,
   tickPendingPops,
   type CreatedGardenWorld,
 } from "@/lib/vibe-garden/gardenPhysics";
@@ -74,7 +75,7 @@ import {
   type GardenShockwave,
 } from "@/lib/vibe-garden/gardenJuice";
 import { preloadGardenFaces } from "@/lib/vibe-garden/gardenFaces";
-import { PlantQueue, createPlantQueue } from "@/lib/vibe-garden/gardenQueue";
+import { PlantQueue, createPlantQueue, plantQueueFromSnapshot } from "@/lib/vibe-garden/gardenQueue";
 import {
   dailyCorruptionScript,
   dailyPlantQueue,
@@ -101,6 +102,13 @@ import { FirstRunCoachOverlay } from "@/components/arcade/FirstRunCoachOverlay";
 import { hasCompletedOnboarding } from "@/lib/arcade/onboarding";
 import { bumpNightStreakLoggedIn } from "@/lib/arcade/nightStreakClient";
 import { useArcadeAudioZone } from "@/hooks/useArcadeAudioZone";
+import { ArcadeResumePrompt } from "@/components/arcade/ArcadeResumePrompt";
+import {
+  gardenResumeDetail,
+  loadGardenResumeSnapshot,
+  saveGardenResume,
+  type GardenResumeSnapshot,
+} from "@/lib/vibe-garden/gardenResume";
 
 export type GardenPhase = "menu" | "playing" | "paused" | "gameover";
 export type GardenMode = "classic" | "daily" | "zen";
@@ -138,6 +146,7 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
   const endGameRef = useRef<(reason: GardenEndReason) => void>(() => undefined);
   const mutedRef = useRef(false);
   const comboRef = useRef(0);
+  const maxComboRef = useRef(0);
   const lastComboAt = useRef(0);
   const plantsRef = useRef(0);
   const maxChainRef = useRef(0);
@@ -176,6 +185,10 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [pendingResume, setPendingResume] = useState<GardenResumeSnapshot | null>(null);
+  const [serverRank, setServerRank] = useState<number | null>(null);
+  const [resultAchSlugs, setResultAchSlugs] = useState<string[]>([]);
+  const runStartRef = useRef(0);
 
   const muted = persisted.soundMuted;
   mutedRef.current = muted;
@@ -186,6 +199,7 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
   useEffect(() => {
     void preloadGardenFaces();
     void preloadMergeBackgrounds();
+    setPendingResume(loadGardenResumeSnapshot());
   }, []);
 
   const selectPlayBackground = useCallback((id: string) => {
@@ -204,8 +218,49 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
     setRiskMult(riskScoreMultiplier(corr));
   }, []);
 
+  const buildGardenSnapshot = useCallback((): GardenResumeSnapshot | null => {
+    const world = worldRef.current;
+    if (!world || mode === "zen") return null;
+    const q = queueRef.current;
+    if (!q) return null;
+    const elapsedMs = runStartRef.current ? performance.now() - runStartRef.current : 0;
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      mode,
+      dailySeed,
+      runStart: runStartRef.current,
+      elapsedMs,
+      score: scoreRef.current,
+      combo: comboRef.current,
+      maxCombo: maxComboRef.current,
+      plants: plantsRef.current,
+      maxChain: maxChainRef.current,
+      cleanses: cleansesRef.current,
+      goldBlooms: goldBloomsRef.current,
+      corruption: { ...corruptionRef.current },
+      queue: q.exportSnapshot(),
+      nextColor: q.peek(),
+      entities: world.entities.map((b) => {
+        const p = pluginOf(b);
+        return { x: b.position.x, y: b.position.y, colorId: p.colorId, state: p.state };
+      }),
+      dailyEventIdx: dailyEventIdx.current,
+    };
+  }, [mode, dailySeed]);
+
+  useEffect(() => {
+    if (phase !== "playing" && phase !== "paused") return;
+    const id = window.setInterval(() => {
+      const snap = buildGardenSnapshot();
+      if (snap) saveGardenResume(snap);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [phase, buildGardenSnapshot]);
+
   const endGame = useCallback(
     async (reason: GardenEndReason) => {
+      saveGardenResume(null);
       const world = worldRef.current;
       if (!world || phase === "gameover") return;
       if (reason !== "daily_complete") playGardenGameOver(mutedRef.current);
@@ -241,8 +296,9 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
           ...nextPersisted,
           achievements: [...nextPersisted.achievements, ...newAch.map((a) => a.slug)],
         };
-        showAchievementToasts(newAch as AchievementDef[], "vibe-garden");
       }
+      setResultAchSlugs(newAch.map((a) => a.slug));
+      setServerRank(null);
       setPersisted(nextPersisted);
       saveGardenPersisted(nextPersisted);
 
@@ -250,32 +306,28 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
       setIsNewBest(mode !== "zen" && finalScore >= best && finalScore > 0);
 
       if (user && mode !== "zen") {
-        try {
-          await fetch("/api/scores", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              gameId: GARDEN_GAME_ID,
-              mode,
-              levelId: GARDEN_LEVEL_ID,
-              seed: mode === "daily" ? dailySeed : null,
-              score: finalScore,
-              stars: 0,
-              shotsUsed: stats.plants,
-              shotsTotal: 999,
-              won: true,
-              moves_json: JSON.stringify({
-                survivalMs: Math.floor(survivalMs),
-                plants: stats.plants,
-                maxBloomChain: stats.maxChain,
-                cleanses: stats.cleanses,
-              }),
-            }),
-          });
-        } catch {
-          /* local play ok */
-        }
+        const { rank } = await submitArcadeScore({
+          gameId: GARDEN_GAME_ID,
+          mode,
+          levelId: GARDEN_LEVEL_ID,
+          seed: mode === "daily" ? dailySeed : null,
+          score: finalScore,
+          stars: 0,
+          shotsUsed: stats.plants,
+          shotsTotal: 999,
+          won: true,
+          moves_json: JSON.stringify({
+            survivalMs: Math.floor(survivalMs),
+            plants: stats.plants,
+            totalPlants: stats.plants,
+            maxBloomChain: stats.maxChain,
+            blooms: stats.maxChain,
+            cleanses: stats.cleanses,
+          }),
+          run_hash: typeof crypto !== "undefined" ? crypto.randomUUID() : `g-${Date.now()}`,
+          client_version: "vibe-sling@0.1.0",
+        });
+        setServerRank(rank);
       }
 
       world.dispose();
@@ -289,6 +341,7 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
 
   const startRun = useCallback(
     (m: GardenMode) => {
+      saveGardenResume(null);
       worldRef.current?.dispose();
       const world = createGardenWorld();
       worldRef.current = world;
@@ -303,6 +356,7 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
       calmPulseRef.current = 0;
       hitStopRef.current = 0;
       comboRef.current = 0;
+      maxComboRef.current = 0;
       lastComboAt.current = 0;
       plantsRef.current = 0;
       maxChainRef.current = 0;
@@ -344,10 +398,12 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
       scoreRef.current = 0;
       setCombo(0);
       setMaxCombo(0);
+      maxComboRef.current = 0;
       setCorruption(corruptionRef.current.meter);
       setStability(corruptionRef.current.stability);
       setRiskMult(riskScoreMultiplier(corruptionRef.current.meter));
       setRunStart(performance.now());
+      runStartRef.current = performance.now();
       if (m === "daily") void bumpNightStreakLoggedIn(!!user);
       setCoachOpen(!hasCompletedOnboarding("vibe-garden"));
       setPhase("playing");
@@ -405,7 +461,11 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
           comboRef.current = 1;
         }
         lastComboAt.current = now;
-        setMaxCombo((mc) => Math.max(mc, comboRef.current));
+        setMaxCombo((mc) => {
+          const next = Math.max(mc, comboRef.current);
+          maxComboRef.current = next;
+          return next;
+        });
         maxChainRef.current = Math.max(maxChainRef.current, result.chain);
         cleansesRef.current += result.cleanses;
         if (result.cascade) goldBloomsRef.current += 1;
@@ -657,6 +717,61 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
     handlePlant(x, y);
   };
 
+  const resumeRun = useCallback(() => {
+    const snap = pendingResume ?? loadGardenResumeSnapshot();
+    if (!snap) return;
+    playUiClick(muted);
+    saveGardenResume(null);
+    worldRef.current?.dispose();
+    const world = createGardenWorld();
+    worldRef.current = world;
+    corruptionRef.current = { ...snap.corruption };
+    if (snap.mode === "daily") {
+      dailyEventsRef.current = dailyCorruptionScript(snap.dailySeed);
+      dailyEventIdx.current = snap.dailyEventIdx;
+      queueRef.current = plantQueueFromSnapshot(snap.queue);
+    } else if (snap.mode === "classic") {
+      queueRef.current = plantQueueFromSnapshot(snap.queue);
+    } else {
+      queueRef.current = null;
+    }
+    for (const ent of snap.entities) {
+      const body = addEntityDirect(world, ent.x, ent.y, ent.colorId, ent.state);
+      if (ent.state === "corrupted") markCorrupted(body);
+    }
+    plantsRef.current = snap.plants;
+    maxChainRef.current = snap.maxChain;
+    cleansesRef.current = snap.cleanses;
+    goldBloomsRef.current = snap.goldBlooms;
+    comboRef.current = snap.combo;
+    maxComboRef.current = snap.maxCombo;
+    scoreRef.current = snap.score;
+    const resumedAt = performance.now();
+    runStartRef.current = resumedAt - snap.elapsedMs;
+    setMode(snap.mode);
+    setDailySeed(snap.dailySeed);
+    setScore(snap.score);
+    setCombo(snap.combo);
+    setMaxCombo(snap.maxCombo);
+    setCorruption(snap.corruption.meter);
+    setStability(snap.corruption.stability);
+    setRiskMult(riskScoreMultiplier(snap.corruption.meter));
+    setNextColor(snap.nextColor);
+    setRunStart(runStartRef.current);
+    floatsRef.current = [];
+    burstsRef.current = [];
+    particlesRef.current = [];
+    shockwavesRef.current = [];
+    motesRef.current = [];
+    setPendingResume(null);
+    setPhase("playing");
+  }, [muted, pendingResume]);
+
+  const discardResume = useCallback(() => {
+    saveGardenResume(null);
+    setPendingResume(null);
+  }, []);
+
   const best = mode === "daily" ? persisted.bestDaily : persisted.bestClassic;
 
   return (
@@ -674,6 +789,17 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
           onCollection={() => setCollectionOpen(true)}
           onSettings={() => setSettingsOpen(true)}
           onBack={onExitToLibrary}
+          resume={
+            pendingResume ? (
+              <ArcadeResumePrompt
+                label="Resume garden"
+                detail={gardenResumeDetail(pendingResume)}
+                muted={muted}
+                onResume={resumeRun}
+                onDiscard={discardResume}
+              />
+            ) : undefined
+          }
         />
       ) : null}
 
@@ -741,9 +867,12 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
             type="button"
             onClick={() => {
               playUiClick(muted);
+              const snap = buildGardenSnapshot();
+              if (snap) saveGardenResume(snap);
               worldRef.current?.dispose();
               worldRef.current = null;
               setPhase("menu");
+              setPendingResume(loadGardenResumeSnapshot());
             }}
             className="w-full rounded-xl border border-white/12 py-3 font-display text-xs font-bold uppercase text-white/60"
           >
@@ -766,9 +895,15 @@ export default function VibeGardenGame({ onExitToLibrary }: VibeGardenGameProps)
           isNewBest={isNewBest}
           muted={muted}
           signedIn={!!user}
+          serverRank={serverRank}
+          newAchievementSlugs={resultAchSlugs}
           onRetry={() => startRun(mode)}
-          onMenu={() => setPhase("menu")}
+          onMenu={() => {
+            setPhase("menu");
+            setPendingResume(loadGardenResumeSnapshot());
+          }}
           onSignIn={() => setAuthOpen(true)}
+          onOpenLeaderboard={() => setLeadersOpen(true)}
         />
       ) : null}
 

@@ -25,6 +25,7 @@ import {
   profileAvatarGlowClass,
   profileBorderClass,
   profileHeroShellClass,
+  PROFILE_SHEET_BACKDROP,
   RARITY_CHIP_CLASS,
 } from "@/lib/profile/profileStyles";
 import { avatarUrlForFaceId } from "@/lib/profile/profileUi";
@@ -433,7 +434,7 @@ export function ProfileEditSheet({ open, onClose }: { open: boolean; onClose: ()
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <button type="button" className="absolute inset-0 bg-black/80 backdrop-blur-md" aria-label="Close" onClick={onClose} />
+          <button type="button" className={PROFILE_SHEET_BACKDROP} aria-label="Close" onClick={onClose} />
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}

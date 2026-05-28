@@ -10,11 +10,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "npx tsx scripts/run-tests.ts",
     "migrate": "npx tsx scripts/migrate-db.ts",
     "upload:screenshots": "npx tsx scripts/upload-dev-screenshots.ts",
     "record:previews": "node scripts/record-game-previews.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.54.0",
     "@supabase/supabase-js": "^2.106.1",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^11.0.0",

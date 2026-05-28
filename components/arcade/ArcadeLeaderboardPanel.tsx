@@ -6,6 +6,8 @@ import type { LeaderboardApiRow } from "@/lib/leaderboardApi";
 import { playUiClick } from "@/lib/sounds";
 import { GameModal } from "@/components/game/GameModal";
 import { arcadeTabBtn, arcadeTabRow } from "@/components/game/gamePanelStyles";
+import { ArcadeEmptyState } from "@/components/arcade/ArcadeEmptyState";
+import { LeaderboardSkeleton } from "@/components/arcade/LeaderboardSkeleton";
 
 type Scope = "daily" | "weekly" | "alltime";
 type ArcadeMode = "classic" | "daily";
@@ -37,9 +39,11 @@ export function ArcadeLeaderboardPanel({
   const [rows, setRows] = useState<LeaderboardApiRow[]>([]);
   const [me, setMe] = useState<LeaderboardApiRow | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
+    setLoading(true);
     const params = new URLSearchParams();
     params.set("gameId", gameId);
     params.set("scope", tab);
@@ -60,9 +64,11 @@ export function ArcadeLeaderboardPanel({
       setRows(data.rows ?? []);
       setMe(data.me ?? null);
     } catch {
-      setErr("Network error");
+      setErr("Network error — check your connection and try again.");
       setRows([]);
       setMe(null);
+    } finally {
+      setLoading(false);
     }
   }, [tab, mode, gameId, levelId, dailySeed]);
 
@@ -120,29 +126,38 @@ export function ArcadeLeaderboardPanel({
           )}
         </p>
       ) : null}
-      {err ? <p className="font-body text-sm text-gvc-orange">{err}</p> : null}
-      <ul className="space-y-2">
-        {rows.length === 0 && !err ? (
-          <li className="rounded-lg border border-white/8 bg-black/40 px-3 py-4 text-center font-body text-xs text-white/40">
-            No scores yet — be the first!
-          </li>
-        ) : null}
-        {rows.map((r) => (
-          <li
-            key={`${r.rank}-${r.username}-${r.score}`}
-            className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/40 px-3 py-2"
-          >
-            <span className="w-8 font-display text-xs font-bold text-gvc-gold">#{r.rank}</span>
-            <span className="min-w-0 flex-1 truncate font-body text-sm text-white/80">
-              <Link href={`/profile/${encodeURIComponent(r.username)}`} className="hover:text-gvc-gold">
-                {r.username}
-              </Link>
-            </span>
-            <span className="font-display text-sm font-bold tabular-nums text-white">{r.score.toLocaleString()}</span>
-          </li>
-        ))}
-      </ul>
-      {me ? (
+      {err ? <p className="mb-3 font-body text-sm text-gvc-orange">{err}</p> : null}
+      {loading ? (
+        <LeaderboardSkeleton />
+      ) : (
+        <ul className="space-y-2">
+          {rows.length === 0 && !err ? (
+            <li>
+              <ArcadeEmptyState
+                headline="No scores yet"
+                detail="Play today's daily seed and submit a score while signed in."
+                actionLabel="Back to arcade"
+                actionHref="/"
+              />
+            </li>
+          ) : null}
+          {rows.map((r) => (
+            <li
+              key={`${r.rank}-${r.username}-${r.score}`}
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-black/40 px-3 py-2"
+            >
+              <span className="w-8 font-display text-xs font-bold text-gvc-gold">#{r.rank}</span>
+              <span className="min-w-0 flex-1 truncate font-body text-sm text-white/80">
+                <Link href={`/profile/${encodeURIComponent(r.username)}`} className="hover:text-gvc-gold">
+                  {r.username}
+                </Link>
+              </span>
+              <span className="font-display text-sm font-bold tabular-nums text-white">{r.score.toLocaleString()}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {me && !loading ? (
         <p className="mt-3 text-center font-body text-xs text-white/50">
           Your rank: #{me.rank} · {me.score.toLocaleString()}
         </p>

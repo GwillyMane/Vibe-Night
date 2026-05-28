@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { submitArcadeScore } from "@/hooks/usePostRun";
 import type { AchievementDef } from "@/lib/achievements";
-import { showAchievementToasts } from "../AchievementToast";
 import { GameModal } from "../GameModal";
 import { AuthModal } from "../AuthModal";
 import { MergeTitleScreen } from "./MergeTitleScreen";
@@ -24,7 +24,7 @@ import {
   PRODUCT_TITLE,
   type MergeTierId,
 } from "@/lib/vibe-merge/mergeConfig";
-import { DropQueue, createDropQueue } from "@/lib/vibe-merge/mergeQueue";
+import { DropQueue, createDropQueue, dropQueueFromSnapshot } from "@/lib/vibe-merge/mergeQueue";
 import { dailyDropQueue, mergeDailySeed } from "@/lib/vibe-merge/mergeDaily";
 import { pointsForMerge, survivalBonus } from "@/lib/vibe-merge/mergeScoring";
 import {
@@ -36,7 +36,9 @@ import {
   moveAimX,
   setHoldingTier,
   evaluateDangerLine,
+  restoreMergeStack,
   type CreatedMergeWorld,
+  type MergePiecePlugin,
 } from "@/lib/vibe-merge/mergePhysics";
 import { paintMergeWorld } from "@/lib/vibe-merge/mergePaint";
 import {
@@ -63,6 +65,13 @@ import { FirstRunCoachOverlay } from "@/components/arcade/FirstRunCoachOverlay";
 import { hasCompletedOnboarding } from "@/lib/arcade/onboarding";
 import { bumpNightStreakLoggedIn } from "@/lib/arcade/nightStreakClient";
 import { useArcadeAudioZone } from "@/hooks/useArcadeAudioZone";
+import { ArcadeResumePrompt } from "@/components/arcade/ArcadeResumePrompt";
+import {
+  loadMergeResumeSnapshot,
+  mergeResumeDetail,
+  saveMergeResume,
+  type MergeResumeSnapshot,
+} from "@/lib/vibe-merge/mergeResume";
 
 export type MergePhase = "menu" | "playing" | "paused" | "gameover";
 
@@ -111,6 +120,11 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
   const [canDrop, setCanDrop] = useState(true);
   const [coachOpen, setCoachOpen] = useState(false);
   const [dangerNear, setDangerNear] = useState(false);
+  const [pendingResume, setPendingResume] = useState<MergeResumeSnapshot | null>(null);
+  const [serverRank, setServerRank] = useState<number | null>(null);
+  const [resultAchSlugs, setResultAchSlugs] = useState<string[]>([]);
+  const mergeCountRef = useRef(0);
+  const maxComboRef = useRef(0);
 
   const muted = persisted.soundMuted;
 
@@ -120,6 +134,7 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
   useEffect(() => {
     void preloadMergeFaces();
     void preloadMergeBackgrounds();
+    setPendingResume(loadMergeResumeSnapshot());
   }, []);
 
   useEffect(() => {
@@ -139,7 +154,47 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
     floatsRef.current = next.length > 10 ? next.slice(-10) : next;
   }, []);
 
+  const buildMergeSnapshot = useCallback((): MergeResumeSnapshot | null => {
+    const world = worldRef.current;
+    const q = queueRef.current;
+    if (!world || !q) return null;
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      mode,
+      dailySeed,
+      queue: q.exportSnapshot(),
+      score: scoreRef.current,
+      combo: comboRef.current,
+      maxCombo: maxComboRef.current,
+      mergeCount: mergeCountRef.current,
+      highestTier: highestRef.current as MergeTierId,
+      holdingTier: world.holdingTier,
+      aimX: world.aimX,
+      runStart,
+      pieces: world.pieces.map((b) => {
+        const p = b.plugin as MergePiecePlugin;
+        return {
+          tier: p.mergeTier,
+          x: b.position.x,
+          y: b.position.y,
+          angle: b.angle,
+        };
+      }),
+    };
+  }, [mode, dailySeed, runStart]);
+
+  useEffect(() => {
+    if (phase !== "playing" && phase !== "paused") return;
+    const id = window.setInterval(() => {
+      const snap = buildMergeSnapshot();
+      if (snap) saveMergeResume(snap);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [phase, buildMergeSnapshot]);
+
   const startRun = useCallback((m: "classic" | "daily") => {
+    saveMergeResume(null);
     worldRef.current?.dispose();
     const seed = m === "daily" ? mergeDailySeed() : "classic";
     setDailySeed(seed);
@@ -172,14 +227,19 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
     canDropRef.current = true;
     setRunStart(Date.now());
     setIsNewBest(false);
+    setServerRank(null);
+    setResultAchSlugs([]);
     lastComboAt.current = 0;
     comboRef.current = 0;
+    mergeCountRef.current = 0;
+    maxComboRef.current = 0;
     if (m === "daily") void bumpNightStreakLoggedIn(!!user);
     setCoachOpen(!hasCompletedOnboarding("vibe-merge"));
     setPhase("playing");
   }, [user]);
 
   const endGame = useCallback(async () => {
+    saveMergeResume(null);
     const survival = Date.now() - runStart;
     const finalScore = scoreRef.current + survivalBonus(survival);
     const hi = highestTier;
@@ -202,36 +262,30 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
       maxCombo,
       dailySeed: mode === "daily" ? dailySeed : undefined,
     });
-    p.achievements = [...owned];
+    p.achievements = [...owned, ...newly.map((a) => a.slug)];
     saveMergePersisted(p);
     setPersisted(p);
     setScore(finalScore);
-    showAchievementToasts(newly as AchievementDef[], "vibe-merge");
+    setResultAchSlugs(newly.map((a) => a.slug));
     playMergeGameOver(muted);
     setPhase("gameover");
 
     if (user) {
-      try {
-        await fetch("/api/scores", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            gameId: MERGE_GAME_ID,
-            mode,
-            levelId: MERGE_LEVEL_ID,
-            seed: mode === "daily" ? dailySeed : null,
-            score: finalScore,
-            stars: 0,
-            shotsUsed: queueRef.current?.dropsUsed ?? 0,
-            shotsTotal: 999,
-            won: true,
-            moves_json: JSON.stringify({ merges: mergeCount, highestTier: hi }),
-          }),
-        });
-      } catch {
-        /* guest/local ok */
-      }
+      const { rank } = await submitArcadeScore({
+        gameId: MERGE_GAME_ID,
+        mode,
+        levelId: MERGE_LEVEL_ID,
+        seed: mode === "daily" ? dailySeed : null,
+        score: finalScore,
+        stars: 0,
+        shotsUsed: queueRef.current?.dropsUsed ?? 0,
+        shotsTotal: 999,
+        won: true,
+        moves_json: JSON.stringify({ merges: mergeCount, highestTier: hi }),
+        run_hash: typeof crypto !== "undefined" ? crypto.randomUUID() : `m-${Date.now()}`,
+        client_version: "vibe-sling@0.1.0",
+      });
+      setServerRank(rank);
     }
   }, [runStart, highestTier, maxCombo, mergeCount, mode, dailySeed, muted, user]);
 
@@ -286,10 +340,12 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
           now - lastComboAt.current < COMBO_WINDOW_MS ? comboRef.current + 1 : 1;
         comboRef.current = c;
         lastComboAt.current = now;
+        maxComboRef.current = Math.max(maxComboRef.current, c);
         setMaxCombo((prev) => Math.max(prev, c));
         const { points, label } = pointsForMerge(ev.scoreTier, c);
         const big = ev.intoTier >= 7 || c >= 3;
         scoreRef.current += points;
+        mergeCountRef.current += 1;
         setMergeCount((n) => n + 1);
         addFloat(label, ev.x, ev.y, c, big);
         burstsRef.current.push({
@@ -415,6 +471,52 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
     draggingRef.current = false;
   };
 
+  const resumeRun = useCallback(() => {
+    const snap = pendingResume ?? loadMergeResumeSnapshot();
+    if (!snap) return;
+    playUiClick(muted);
+    saveMergeResume(null);
+    worldRef.current?.dispose();
+    const world = createMergeWorld();
+    worldRef.current = world;
+    restoreMergeStack(world, snap.pieces);
+    world.aimX = snap.aimX;
+    const q = dropQueueFromSnapshot(snap.queue);
+    queueRef.current = q;
+    setHoldingTier(world, snap.holdingTier ?? q.current());
+    setMode(snap.mode);
+    setDailySeed(snap.dailySeed);
+    setCurrentTier(q.current());
+    setNextTier(q.next());
+    scoreRef.current = snap.score;
+    comboRef.current = snap.combo;
+    maxComboRef.current = snap.maxCombo;
+    mergeCountRef.current = snap.mergeCount;
+    highestRef.current = snap.highestTier;
+    setScore(snap.score);
+    setCombo(snap.combo);
+    setMaxCombo(snap.maxCombo);
+    setMergeCount(snap.mergeCount);
+    setHighestTier(snap.highestTier);
+    setRunStart(snap.runStart);
+    floatsRef.current = [];
+    burstsRef.current = [];
+    shakeRef.current = 0;
+    dangerPulseRef.current = 0;
+    dangerNearRef.current = false;
+    setDangerNear(false);
+    canDropRef.current = true;
+    setCanDrop(true);
+    dropInFlightRef.current = false;
+    setPendingResume(null);
+    setPhase("playing");
+  }, [muted, pendingResume]);
+
+  const discardResume = useCallback(() => {
+    saveMergeResume(null);
+    setPendingResume(null);
+  }, []);
+
   const best = mode === "classic" ? persisted.bestClassic : persisted.bestDaily;
 
   return (
@@ -434,6 +536,17 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
           onCollection={() => setCollectionOpen(true)}
           onSettings={() => setSettingsOpen(true)}
           onBack={onExitToLibrary}
+          resume={
+            pendingResume ? (
+              <ArcadeResumePrompt
+                label="Resume stack"
+                detail={mergeResumeDetail(pendingResume)}
+                muted={muted}
+                onResume={resumeRun}
+                onDiscard={discardResume}
+              />
+            ) : undefined
+          }
         />
       ) : null}
 
@@ -492,9 +605,15 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
           isNewBest={isNewBest}
           muted={muted}
           signedIn={!!user}
+          serverRank={serverRank}
+          newAchievementSlugs={resultAchSlugs}
           onRetry={() => startRun(mode)}
-          onMenu={() => setPhase("menu")}
+          onMenu={() => {
+            setPhase("menu");
+            setPendingResume(loadMergeResumeSnapshot());
+          }}
           onSignIn={user ? undefined : () => setAuthOpen(true)}
+          onOpenLeaderboard={() => setLeadersOpen(true)}
         />
       ) : null}
 
@@ -503,7 +622,7 @@ export default function VibeMergeGame({ onExitToLibrary }: VibeMergeGameProps) {
           <button type="button" className="min-h-[48px] rounded-xl bg-gvc-gold font-display text-sm font-black uppercase text-gvc-black" onClick={() => setPhase("playing")}>
             Resume
           </button>
-          <button type="button" className="min-h-[44px] rounded-xl border border-white/12 font-display text-xs font-bold uppercase text-white/70" onClick={() => { setPhase("menu"); worldRef.current?.dispose(); }}>
+          <button type="button" className="min-h-[44px] rounded-xl border border-white/12 font-display text-xs font-bold uppercase text-white/70" onClick={() => { saveMergeResume(buildMergeSnapshot()); setPhase("menu"); worldRef.current?.dispose(); setPendingResume(loadMergeResumeSnapshot()); }}>
             Quit to menu
           </button>
         </div>

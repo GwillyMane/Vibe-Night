@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { loginUser } from "@/lib/auth";
 import { dbAvailable, ensureTables, getPool } from "@/lib/db";
-import { clientIp, rateLimitAllow } from "@/lib/rateLimit";
+import { clientIp, rateLimitCheck } from "@/lib/rateLimit";
 import { createSessionForUser, setSessionCookieOnResponse } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   const ip = clientIp(request);
-  if (!rateLimitAllow(`auth:login:ip:${ip}`, 10, 60_000)) {
+  if (!(await rateLimitCheck(`auth:login:ip:${ip}`, 10, 60_000))) {
     return NextResponse.json({ error: "Too many login attempts. Try again shortly." }, { status: 429 });
   }
 

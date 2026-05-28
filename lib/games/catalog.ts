@@ -3,6 +3,8 @@
  */
 export type GameId = "vibe-crashers" | "vibe-merge" | "vibe-garden" | "catch-a-vibe" | "vibe-shift" | "lucky-vibes";
 
+export const CRASHERS_GAME_ID: GameId = "vibe-crashers";
+
 export type GameStatus = "available" | "coming_soon";
 
 export interface GameCatalogEntry {
@@ -145,6 +147,11 @@ const KNOWN_GAME_IDS = new Set<string>(GAME_LIBRARY.map((g) => g.id));
 
 export function isKnownGameId(id: string): id is GameId {
   return KNOWN_GAME_IDS.has(id);
+}
+
+/** App Router path for a game deep link (matches `app/{id}/page.tsx`). */
+export function gameRoutePath(id: GameId): string {
+  return `/${id}`;
 }
 
 export const AVAILABLE_GAMES = GAME_LIBRARY.filter((g) => g.status === "available");

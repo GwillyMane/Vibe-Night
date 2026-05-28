@@ -21,6 +21,20 @@ export class PlantQueue {
     this.dropsUsed += 1;
     return c;
   }
+
+  exportSnapshot(): { index: number; colors: GardenColorId[] } {
+    return { index: this.idx, colors: [...this.seq] };
+  }
+
+  restoreIndex(index: number): void {
+    this.idx = Math.max(0, index);
+  }
+}
+
+export function plantQueueFromSnapshot(snap: { index: number; colors: GardenColorId[] }): PlantQueue {
+  const q = new PlantQueue(snap.colors);
+  q.restoreIndex(snap.index);
+  return q;
 }
 
 export function createPlantQueue(rand: () => number, length = 512): PlantQueue {

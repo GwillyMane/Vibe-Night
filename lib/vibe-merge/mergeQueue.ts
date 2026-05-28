@@ -52,4 +52,18 @@ export class DropQueue {
   get dropsUsed(): number {
     return this.index;
   }
+
+  exportSnapshot(): { index: number; tiers: MergeTierId[] } {
+    return { index: this.index, tiers: [...this.queue] };
+  }
+
+  restoreIndex(index: number): void {
+    this.index = Math.max(0, index);
+  }
+}
+
+export function dropQueueFromSnapshot(snap: { index: number; tiers: MergeTierId[] }): DropQueue {
+  const q = new DropQueue(snap.tiers);
+  q.restoreIndex(snap.index);
+  return q;
 }

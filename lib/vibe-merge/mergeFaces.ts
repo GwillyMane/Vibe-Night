@@ -1,5 +1,5 @@
 import { GVC_LIBRARY_FACE_URLS } from "@/lib/assets/gvcLibraryFaces";
-import { imageUrlForToken, loadGvcMetadata } from "@/lib/assets/gvcMetadata";
+import { imageUrlForToken, loadTokensMetadata } from "@/lib/assets/gvcMetadata";
 import { MERGE_TIER_TOKEN_IDS, type MergeTierId } from "./mergeConfig";
 
 const cache = new Map<number, HTMLImageElement>();
@@ -22,7 +22,9 @@ export async function preloadMergeFaces(): Promise<void> {
     loads.push({ tier, url: GVC_LIBRARY_FACE_URLS[tier - 1]! });
   }
 
-  const meta = await loadGvcMetadata();
+  const meta = await loadTokensMetadata(
+    ([7, 8, 9, 10] as const).map((tier) => MERGE_TIER_TOKEN_IDS[tier])
+  );
   for (const tier of [7, 8, 9, 10] as const) {
     const url = imageUrlForToken(meta[MERGE_TIER_TOKEN_IDS[tier]]);
     if (url) loads.push({ tier, url });

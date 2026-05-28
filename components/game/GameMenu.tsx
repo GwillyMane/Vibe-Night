@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import type { ProjectileSkinId } from "@/lib/assets/projectileSkins";
 import { GOOD_VIBE_FACE_SKINS } from "@/lib/assets/gvcBrandFaces";
@@ -28,6 +28,7 @@ export interface GameMenuProps {
   tokenOptions: { id: string; name: string; imageUrl: string }[];
   onProjectileSkinChange: (id: ProjectileSkinId) => void;
   onBackToLibrary?: () => void;
+  resume?: React.ReactNode;
 }
 
 export function GameMenu({
@@ -40,6 +41,7 @@ export function GameMenu({
   tokenOptions,
   onProjectileSkinChange,
   onBackToLibrary,
+  resume,
 }: GameMenuProps) {
   const c = () => playUiClick(muted);
   const openModal = () => {
@@ -73,6 +75,7 @@ export function GameMenu({
         tagline="Launch good vibes. Break bad energy. Clear every crash."
         muted={muted}
         onBack={onBackToLibrary}
+        headerExtra={resume}
         primaryCta={{
           label: "Play",
           onClick: () => {

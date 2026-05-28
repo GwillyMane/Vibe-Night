@@ -3,7 +3,7 @@ import { PROFILE_PAGE_SHELL } from "@/lib/profile/profileStyles";
 export default function ProfileLoading() {
   return (
     <div className={PROFILE_PAGE_SHELL}>
-      <main className="relative mx-auto max-w-lg animate-pulse px-4 pb-8 pt-5 sm:max-w-xl">
+      <main className="relative mx-auto max-w-lg animate-pulse px-4 pb-arcade-player pt-5 sm:max-w-xl">
         <div className="mb-5 flex justify-between rounded-2xl border border-[#1F1F1F] bg-[#0a0a0a] px-3 py-2.5">
           <div className="h-4 w-24 rounded bg-white/10" />
           <div className="h-10 w-28 rounded-xl bg-white/10" />

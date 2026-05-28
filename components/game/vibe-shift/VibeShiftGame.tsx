@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/useAuth";
-import type { AchievementDef } from "@/lib/achievements";
-import { showAchievementToasts } from "../AchievementToast";
+import { submitArcadeScore } from "@/hooks/usePostRun";
 import { GameModal } from "../GameModal";
+import { AuthModal } from "../AuthModal";
 import { ShiftTitleScreen } from "./ShiftTitleScreen";
 import { ShiftHud } from "./ShiftHud";
 import { ShiftResultScreen } from "./ShiftResultScreen";
@@ -112,6 +112,9 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
   const [leadersOpen, setLeadersOpen] = useState(false);
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [serverRank, setServerRank] = useState<number | null>(null);
+  const [resultAchSlugs, setResultAchSlugs] = useState<string[]>([]);
   const [pendingResume, setPendingResume] = useState<ShiftResumeSnapshot | null>(null);
 
   const runSeedRef = useRef("");
@@ -168,8 +171,9 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
           ...nextPersisted,
           achievements: [...nextPersisted.achievements, ...newAch.map((a) => a.slug)],
         };
-        showAchievementToasts(newAch as AchievementDef[], "vibe-shift");
       }
+      setResultAchSlugs(newAch.map((a) => a.slug));
+      setServerRank(null);
 
       setPersisted(nextPersisted);
       saveShiftPersisted(nextPersisted);
@@ -183,28 +187,23 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
       bumpNightStreakLoggedIn(!!user);
 
       if (user) {
-        try {
-          await fetch("/api/scores", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              gameId: SHIFT_GAME_ID,
-              mode: state.mode,
-              levelId: SHIFT_LEVEL_ID,
-              seed: state.mode === "daily" ? state.seed : runSeedRef.current,
-              score,
-              stars: 0,
-              shotsUsed: state.movesUsed,
-              shotsTotal: state.maxMoves ?? 999,
-              won: true,
-              moves_json: serializeMoves(state.moves),
-              runSeed: state.mode === "classic" ? runSeedRef.current : undefined,
-            }),
-          });
-        } catch {
-          toast.error("Could not submit score.");
-        }
+        const { rank, error } = await submitArcadeScore({
+          gameId: SHIFT_GAME_ID,
+          mode: state.mode,
+          levelId: SHIFT_LEVEL_ID,
+          seed: state.mode === "daily" ? state.seed : runSeedRef.current,
+          score,
+          stars: 0,
+          shotsUsed: state.movesUsed,
+          shotsTotal: state.maxMoves ?? 999,
+          won: true,
+          moves_json: serializeMoves(state.moves),
+          runSeed: state.mode === "classic" ? runSeedRef.current : undefined,
+          run_hash: typeof crypto !== "undefined" ? crypto.randomUUID() : `s-${Date.now()}`,
+          client_version: "vibe-sling@0.1.0",
+        });
+        setServerRank(rank);
+        if (error) toast.error(error);
       }
     },
     [persisted, muted, user]
@@ -442,6 +441,11 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
           endReason={endReason}
           isNewBest={isNewBest}
           muted={muted}
+          isLoggedIn={!!user}
+          serverRank={serverRank}
+          newAchievementSlugs={resultAchSlugs}
+          onOpenAuth={() => setAuthOpen(true)}
+          onOpenLeaderboard={() => setLeadersOpen(true)}
           onRestart={mode === "daily" ? startDaily : startClassic}
           onMenu={() => {
             setPhase("menu");
@@ -450,6 +454,7 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
             setPendingResume(loadShiftResumeSnapshot());
           }}
         />
+        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} muted={muted} title={PRODUCT_TITLE} />
       </div>
     );
   }

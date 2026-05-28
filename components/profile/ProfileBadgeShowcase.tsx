@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
+import { ArcadeEmptyState } from "@/components/arcade/ArcadeEmptyState";
 import { PROFILE_CARD, PROFILE_TEXT_SHADOW } from "@/lib/profile/profileStyles";
 import type { PinnedBadge, PublicProfile } from "@/lib/profile/types";
 import { achievementByKey } from "@/lib/profile/catalog";
@@ -68,6 +69,17 @@ export function ProfileBadgeShowcase({ profile }: { profile: PublicProfile }) {
     : profile.featuredBadgeKey
       ? [{ slot: 0, badgeKey: profile.featuredBadgeKey }]
       : [];
+
+  if (profile.achievementCount === 0 && pins.length === 0) {
+    return (
+      <ArcadeEmptyState
+        headline="No badges yet"
+        detail="Play any arcade title to earn badges"
+        actionLabel="Play now"
+        actionHref="/"
+      />
+    );
+  }
 
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-0.5 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">

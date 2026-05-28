@@ -11,6 +11,12 @@ export function ArcadeMusicPlayer() {
   const { expanded, setExpanded, isPlaying } = useGlobalAudio();
   const [reducedMotion, setReducedMotion] = useState(false);
 
+  function hasOtherVisibleToasts() {
+    const container = document.querySelector("[data-rht-toaster]");
+    if (!container) return false;
+    return container.querySelectorAll("div[style]").length > 0;
+  }
+
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => setReducedMotion(mq.matches);
@@ -21,16 +27,28 @@ export function ArcadeMusicPlayer() {
 
   useEffect(() => {
     if (hasSeenMusicIntro()) return;
-    const t = window.setTimeout(() => {
-      if (!hasSeenMusicIntro() && !isPlaying) {
-        toast("Vibe Night has a soundtrack — tap play when you're ready.", {
-          icon: "🎵",
-          duration: 4000,
-        });
-        markMusicIntroSeen();
+
+    let retryTimer: number | undefined;
+
+    const tryIntroToast = () => {
+      if (hasSeenMusicIntro() || isPlaying) return;
+      if (hasOtherVisibleToasts()) {
+        retryTimer = window.setTimeout(tryIntroToast, 2000);
+        return;
       }
-    }, 4000);
-    return () => window.clearTimeout(t);
+      toast("Vibe Night has a soundtrack — tap play when you're ready.", {
+        icon: "🎵",
+        duration: 4000,
+        id: "music-intro",
+      });
+      markMusicIntroSeen();
+    };
+
+    const t = window.setTimeout(tryIntroToast, 4000);
+    return () => {
+      window.clearTimeout(t);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
   }, [isPlaying]);
 
   return (

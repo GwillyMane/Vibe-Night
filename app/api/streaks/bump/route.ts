@@ -4,6 +4,7 @@ import { recordActivity, touchLastActive } from "@/lib/profile/activity";
 import { bumpStreak } from "@/lib/profile/streaks";
 import { evaluateAndPersistUnlocks, ensureProfileRow } from "@/lib/profile/unlocks";
 import { titleById } from "@/lib/profile/catalog";
+import { clientIp, rateLimitCheck } from "@/lib/rateLimit";
 import { getCurrentUserFromRequest } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -21,6 +22,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await rateLimitCheck(`streaks:user:${user.id}`, 30, 60_000))) {
+    return NextResponse.json({ error: "Too many streak updates. Try again shortly." }, { status: 429 });
+  }
+  if (!(await rateLimitCheck(`streaks:ip:${clientIp(request)}`, 60, 60_000))) {
+    return NextResponse.json({ error: "Too many streak updates. Try again shortly." }, { status: 429 });
   }
 
   const pool = getPool()!;

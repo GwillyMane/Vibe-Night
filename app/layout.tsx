@@ -65,7 +65,7 @@ export default function RootLayout({
         <VibeNightShell>
           <div className="relative z-[1] min-h-[100dvh]">{children}</div>
         </VibeNightShell>
-        <div className="relative z-[100]">
+        <div className="relative z-[115]">
           <Toaster
             position="bottom-center"
             toastOptions={{

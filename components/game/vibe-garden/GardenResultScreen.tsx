@@ -1,8 +1,8 @@
 "use client";
 
-import toast from "react-hot-toast";
 import { ArcadeResultShell } from "@/components/arcade/ArcadeResultShell";
-import { buildArcadeShareTextWithOg, copyShareText, twitterIntent } from "@/lib/arcade/share";
+import { useArcadeShare } from "@/hooks/useArcadeShare";
+import { defaultShowSignIn } from "@/lib/arcade/postRunProps";
 import type { GardenEndReason } from "@/lib/vibe-garden/gardenEndReason";
 import { GARDEN_END_COPY } from "@/lib/vibe-garden/gardenEndReason";
 
@@ -19,9 +19,12 @@ export function GardenResultScreen({
   isNewBest,
   muted,
   signedIn,
+  serverRank,
+  newAchievementSlugs,
   onRetry,
   onMenu,
   onSignIn,
+  onOpenLeaderboard,
 }: {
   score: number;
   best: number;
@@ -35,25 +38,24 @@ export function GardenResultScreen({
   isNewBest: boolean;
   muted: boolean;
   signedIn: boolean;
+  serverRank?: number | null;
+  newAchievementSlugs?: string[];
   onRetry: () => void;
   onMenu: () => void;
   onSignIn?: () => void;
+  onOpenLeaderboard?: () => void;
 }) {
   const copy = GARDEN_END_COPY[endReason];
   const isWin = endReason === "daily_complete";
-  const shareText = buildGardenShareText(score, maxChain);
   const modeLabel =
     mode === "daily" ? "Daily garden" : mode === "zen" ? "Zen garden" : "Classic garden";
 
-  const share = () => {
-    window.open(twitterIntent(shareText), "_blank", "noopener,noreferrer");
-  };
-
-  const copyScore = async () => {
-    const ok = await copyShareText(shareText);
-    if (ok) toast.success("Score copied — paste it anywhere.", { duration: 2000 });
-    else toast.error("Could not copy", { duration: 2000 });
-  };
+  const { shareToTwitter, copyScore } = useArcadeShare({
+    muted,
+    gameId: "vibe-garden",
+    score,
+    lines: [`Largest Cascade: ${maxChain}×`],
+  });
 
   return (
     <ArcadeResultShell
@@ -80,22 +82,21 @@ export function GardenResultScreen({
       ]}
       isNewBest={isNewBest}
       isLoggedIn={signedIn}
-      showSignIn={!signedIn && mode !== "zen"}
+      serverRank={serverRank}
+      showSignIn={defaultShowSignIn(signedIn, mode !== "zen")}
       onOpenAuth={onSignIn}
+      newAchievementSlugs={newAchievementSlugs}
       badgeGameId="vibe-garden"
       onRetry={onRetry}
       retryLabel="One more run"
-      onShare={share}
+      onShare={shareToTwitter}
       onCopy={() => void copyScore()}
+      onOpenLeaderboard={onOpenLeaderboard}
       onMenu={onMenu}
     />
   );
 }
 
 export function buildGardenShareText(score: number, maxChain: number): string {
-  return buildArcadeShareTextWithOg({
-    gameId: "vibe-garden",
-    score,
-    lines: [`Largest Cascade: ${maxChain}×`],
-  });
+  return `Largest Cascade: ${maxChain}×\nScore: ${score.toLocaleString()}`;
 }

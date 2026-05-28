@@ -1,20 +1,11 @@
 "use client";
 
-import toast from "react-hot-toast";
 import { ArcadeResultShell } from "@/components/arcade/ArcadeResultShell";
-import { buildArcadeShareTextWithOg, copyShareText, twitterIntent } from "@/lib/arcade/share";
+import { useArcadeShare } from "@/hooks/useArcadeShare";
+import { defaultShowSignIn } from "@/lib/arcade/postRunProps";
 import { endReasonLabel, isWinReason } from "@/lib/vibe-shift/shiftEndReason";
 import type { ShiftEndReason } from "@/lib/vibe-shift/shiftEndReason";
 import type { ShiftMode } from "@/lib/vibe-shift/shiftConfig";
-
-export function buildShiftShareText(score: number, mode: ShiftMode): string {
-  const modeLabel = mode === "daily" ? "Daily Shift" : "Classic Shift";
-  return buildArcadeShareTextWithOg({
-    gameId: "vibe-shift",
-    score,
-    mode: modeLabel,
-  });
-}
 
 export function ShiftResultScreen({
   mode,
@@ -23,6 +14,11 @@ export function ShiftResultScreen({
   endReason,
   isNewBest,
   muted,
+  isLoggedIn,
+  serverRank,
+  newAchievementSlugs,
+  onOpenAuth,
+  onOpenLeaderboard,
   onRestart,
   onMenu,
 }: {
@@ -32,21 +28,23 @@ export function ShiftResultScreen({
   endReason: ShiftEndReason | null;
   isNewBest: boolean;
   muted: boolean;
+  isLoggedIn?: boolean;
+  serverRank?: number | null;
+  newAchievementSlugs?: string[];
+  onOpenAuth?: () => void;
+  onOpenLeaderboard?: () => void;
   onRestart: () => void;
   onMenu: () => void;
 }) {
   const won = isWinReason(endReason, mode);
-  const shareText = buildShiftShareText(score, mode);
+  const modeShareLabel = mode === "daily" ? "Daily Shift" : "Classic Shift";
 
-  const share = () => {
-    window.open(twitterIntent(shareText), "_blank", "noopener,noreferrer");
-  };
-
-  const copyScore = async () => {
-    const ok = await copyShareText(shareText);
-    if (ok) toast.success("Score copied — paste it anywhere.", { duration: 2000 });
-    else toast.error("Could not copy", { duration: 2000 });
-  };
+  const { shareToTwitter, copyScore } = useArcadeShare({
+    muted,
+    gameId: "vibe-shift",
+    score,
+    mode: modeShareLabel,
+  });
 
   return (
     <ArcadeResultShell
@@ -61,11 +59,17 @@ export function ShiftResultScreen({
         { label: "Mode", value: mode },
       ]}
       isNewBest={isNewBest}
+      isLoggedIn={isLoggedIn}
+      serverRank={serverRank}
+      showSignIn={defaultShowSignIn(!!isLoggedIn, true)}
+      onOpenAuth={onOpenAuth}
+      newAchievementSlugs={newAchievementSlugs}
       badgeGameId="vibe-shift"
       onRetry={onRestart}
       retryLabel="Play again"
-      onShare={share}
+      onShare={shareToTwitter}
       onCopy={() => void copyScore()}
+      onOpenLeaderboard={onOpenLeaderboard}
       onMenu={onMenu}
     />
   );

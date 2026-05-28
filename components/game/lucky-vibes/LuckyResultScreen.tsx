@@ -1,18 +1,9 @@
 "use client";
 
-import toast from "react-hot-toast";
 import { ArcadeResultShell } from "@/components/arcade/ArcadeResultShell";
-import { buildArcadeShareTextWithOg, copyShareText, twitterIntent } from "@/lib/arcade/share";
+import { useArcadeShare } from "@/hooks/useArcadeShare";
+import { defaultShowSignIn } from "@/lib/arcade/postRunProps";
 import { type LuckyMode } from "@/lib/lucky-vibes/luckyConfig";
-
-export function buildLuckyShareText(score: number, mode: LuckyMode): string {
-  const modeLabel = mode === "daily" ? "Daily" : mode === "zen" ? "Zen" : "Classic";
-  return buildArcadeShareTextWithOg({
-    gameId: "lucky-vibes",
-    score,
-    mode: modeLabel,
-  });
-}
 
 export function LuckyResultScreen({
   mode,
@@ -25,6 +16,11 @@ export function LuckyResultScreen({
   grandVibe,
   isNewBest,
   muted,
+  isLoggedIn,
+  serverRank,
+  newAchievementSlugs,
+  onOpenAuth,
+  onOpenLeaderboard,
   onRestart,
   onMenu,
 }: {
@@ -38,22 +34,24 @@ export function LuckyResultScreen({
   grandVibe: boolean;
   isNewBest: boolean;
   muted: boolean;
+  isLoggedIn?: boolean;
+  serverRank?: number | null;
+  newAchievementSlugs?: string[];
+  onOpenAuth?: () => void;
+  onOpenLeaderboard?: () => void;
   onRestart: () => void;
   onMenu: () => void;
 }) {
-  const shareText = buildLuckyShareText(score, mode);
   const modeLabel =
     mode === "daily" ? "Daily run" : mode === "zen" ? "Zen session" : "Classic run";
+  const submitEligible = mode !== "zen";
 
-  const share = () => {
-    window.open(twitterIntent(shareText), "_blank", "noopener,noreferrer");
-  };
-
-  const copyScore = async () => {
-    const ok = await copyShareText(shareText);
-    if (ok) toast.success("Score copied — paste it anywhere.", { duration: 2000 });
-    else toast.error("Could not copy", { duration: 2000 });
-  };
+  const { shareToTwitter, copyScore } = useArcadeShare({
+    muted,
+    gameId: "lucky-vibes",
+    score,
+    mode: modeLabel,
+  });
 
   return (
     <ArcadeResultShell
@@ -72,11 +70,17 @@ export function LuckyResultScreen({
         ...(grandVibe ? [{ label: "Grand Vibe", value: "Yes!" }] : []),
       ]}
       isNewBest={isNewBest}
+      isLoggedIn={isLoggedIn}
+      serverRank={serverRank}
+      showSignIn={defaultShowSignIn(!!isLoggedIn, submitEligible)}
+      onOpenAuth={onOpenAuth}
+      newAchievementSlugs={newAchievementSlugs}
       badgeGameId="lucky-vibes"
       onRetry={onRestart}
       retryLabel="One more run"
-      onShare={share}
+      onShare={shareToTwitter}
       onCopy={() => void copyScore()}
+      onOpenLeaderboard={onOpenLeaderboard}
       onMenu={onMenu}
     />
   );

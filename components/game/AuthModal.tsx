@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { playUiClick } from "@/lib/sounds";
 import { useAuth } from "@/hooks/useAuth";
 import { VIBE_NIGHT } from "@/lib/brand";
 import { ArcadeOverlayPortal } from "@/components/arcade/ArcadeOverlayPortal";
-import { arcadeBackdropClass, arcadeCloseBtnClass, arcadeHeaderRow, arcadePanelClass, arcadeTitleClass, arcadeTabBtn, arcadeTabRow } from "./gamePanelStyles";
+import {
+  arcadeBackdropClass,
+  arcadeCloseBtnClass,
+  arcadeHeaderRow,
+  arcadePanelClass,
+  arcadeTitleClass,
+  arcadeTabBtn,
+  arcadeTabRow,
+} from "./gamePanelStyles";
 
 export type AuthModalTab = "login" | "register";
 
@@ -28,22 +36,40 @@ export function AuthModal({
 }) {
   const { login, register, dbConfigured } = useAuth();
   const [tab, setTab] = useState<AuthModalTab>(initialTab);
-
-  useEffect(() => {
-    if (open) setTab(initialTab);
-  }, [open, initialTab]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
-
   const [regUser, setRegUser] = useState("");
   const [regPw, setRegPw] = useState("");
 
+  const loginPanelId = useId();
+  const registerPanelId = useId();
+  const accountsTitleId = useId();
+
+  const resetForm = () => {
+    setTab("login");
+    setErr(null);
+    setLoading(false);
+    setLoginId("");
+    setLoginPw("");
+    setRegUser("");
+    setRegPw("");
+  };
+
+  useEffect(() => {
+    if (open) {
+      setTab(initialTab);
+      setErr(null);
+    } else {
+      resetForm();
+    }
+  }, [open, initialTab]);
+
   const close = () => {
     playUiClick(muted);
-    setErr(null);
+    resetForm();
     onClose();
   };
 
@@ -60,19 +86,22 @@ export function AuthModal({
                 className={`relative z-10 w-full max-w-lg ${arcadePanelClass}`}
                 role="dialog"
                 aria-modal="true"
+                aria-labelledby={accountsTitleId}
                 onClick={(ev) => ev.stopPropagation()}
               >
-              <div className={arcadeHeaderRow}>
-                <h2 className={arcadeTitleClass}>Accounts</h2>
-                <button type="button" className={arcadeCloseBtnClass} onClick={close} aria-label="Close">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <p className="font-body text-sm text-white/60">
-                Cloud accounts need a database. Set <span className="font-mono text-gvc-gold/90">DATABASE_URL</span> on the
-                server — you can still play as a guest locally.
-              </p>
-            </motion.div>
+                <div className={arcadeHeaderRow}>
+                  <h2 id={accountsTitleId} className={arcadeTitleClass}>
+                    Accounts
+                  </h2>
+                  <button type="button" className={arcadeCloseBtnClass} onClick={close} aria-label="Close">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="font-body text-sm text-white/60">
+                  Cloud accounts need a database. Set <span className="font-mono text-gvc-gold/90">DATABASE_URL</span> on the
+                  server — you can still play as a guest locally.
+                </p>
+              </motion.div>
             </div>
           ) : null}
         </AnimatePresence>
@@ -85,10 +114,11 @@ export function AuthModal({
     setErr(null);
     setLoading(true);
     try {
-      const ok = await login(loginId, loginPw);
-      if (ok) {
+      const result = await login(loginId, loginPw);
+      if (result.ok) {
         close();
-        setLoginPw("");
+      } else {
+        setErr(result.error);
       }
     } finally {
       setLoading(false);
@@ -104,10 +134,11 @@ export function AuthModal({
     }
     setLoading(true);
     try {
-      const ok = await register(regUser, regPw);
-      if (ok) {
+      const result = await register(regUser, regPw);
+      if (result.ok) {
         close();
-        setRegPw("");
+      } else {
+        setErr(result.error);
       }
     } finally {
       setLoading(false);
@@ -128,91 +159,142 @@ export function AuthModal({
               aria-modal="true"
               onClick={(ev) => ev.stopPropagation()}
             >
-            <div className={arcadeHeaderRow}>
-              <div>
-                <h2 className={arcadeTitleClass}>{title}</h2>
-                <p className="mt-1 font-body text-xs text-white/45">{subtitle}</p>
+              <div className={arcadeHeaderRow}>
+                <div>
+                  <h2 className={arcadeTitleClass}>{title}</h2>
+                  <p className="mt-1 font-body text-xs text-white/45">{subtitle}</p>
+                </div>
+                <button type="button" className={arcadeCloseBtnClass} onClick={close} aria-label="Close">
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <button type="button" className={arcadeCloseBtnClass} onClick={close} aria-label="Close">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            <div className={arcadeTabRow}>
-              <button type="button" className={arcadeTabBtn(tab === "login")} onClick={() => setTab("login")}>
-                Log in
-              </button>
-              <button type="button" className={arcadeTabBtn(tab === "register")} onClick={() => setTab("register")}>
-                Create account
-              </button>
-            </div>
-
-            {err ? <p className="mb-3 rounded-lg border border-gvc-orange/30 bg-black/40 px-3 py-2 font-body text-sm text-gvc-orange">{err}</p> : null}
-
-            {tab === "login" ? (
-              <form className="space-y-3" onSubmit={onLogin}>
-                <div>
-                  <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Username</label>
-                  <input
-                    value={loginId}
-                    onChange={(e) => setLoginId(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
-                    autoComplete="username"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Password</label>
-                  <input
-                    type="password"
-                    value={loginPw}
-                    onChange={(e) => setLoginPw(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
-                    autoComplete="current-password"
-                    required
-                  />
-                </div>
+              <div className={arcadeTabRow} role="tablist" aria-label="Account actions">
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full min-h-[48px] rounded-xl bg-gvc-gold py-3 font-display text-sm font-black uppercase text-gvc-black disabled:opacity-50"
+                  type="button"
+                  role="tab"
+                  id="auth-tab-login"
+                  aria-selected={tab === "login"}
+                  aria-controls={loginPanelId}
+                  className={arcadeTabBtn(tab === "login")}
+                  onClick={() => {
+                    setTab("login");
+                    setErr(null);
+                  }}
                 >
-                  {loading ? "…" : "Log in"}
+                  Log in
                 </button>
-              </form>
-            ) : (
-              <form className="space-y-3" onSubmit={onRegister}>
-                <div>
-                  <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Username</label>
-                  <input
-                    value={regUser}
-                    onChange={(e) => setRegUser(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
-                    autoComplete="username"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Password</label>
-                  <input
-                    type="password"
-                    value={regPw}
-                    onChange={(e) => setRegPw(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
-                    autoComplete="new-password"
-                    required
-                    minLength={8}
-                  />
-                </div>
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full min-h-[48px] rounded-xl bg-gvc-gold py-3 font-display text-sm font-black uppercase text-gvc-black disabled:opacity-50"
+                  type="button"
+                  role="tab"
+                  id="auth-tab-register"
+                  aria-selected={tab === "register"}
+                  aria-controls={registerPanelId}
+                  className={arcadeTabBtn(tab === "register")}
+                  onClick={() => {
+                    setTab("register");
+                    setErr(null);
+                  }}
                 >
-                  {loading ? "…" : "Create account"}
+                  Create account
                 </button>
-              </form>
-            )}
+              </div>
+
+              {err ? (
+                <p
+                  className="mb-3 rounded-lg border border-gvc-orange/30 bg-black/40 px-3 py-2 font-body text-sm text-gvc-orange"
+                  role="alert"
+                >
+                  {err}
+                </p>
+              ) : null}
+
+              {tab === "login" ? (
+                <form className="space-y-3" onSubmit={onLogin} id={loginPanelId} role="tabpanel" aria-labelledby="auth-tab-login">
+                  <div>
+                    <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Username</label>
+                    <input
+                      value={loginId}
+                      onChange={(e) => setLoginId(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Password</label>
+                    <input
+                      type="password"
+                      value={loginPw}
+                      onChange={(e) => setLoginPw(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
+                      autoComplete="current-password"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    aria-busy={loading}
+                    className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl bg-gvc-gold py-3 font-display text-sm font-black uppercase text-gvc-black disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Signing in…
+                      </>
+                    ) : (
+                      "Log in"
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form
+                  className="space-y-3"
+                  onSubmit={onRegister}
+                  id={registerPanelId}
+                  role="tabpanel"
+                  aria-labelledby="auth-tab-register"
+                >
+                  <div>
+                    <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Username</label>
+                    <input
+                      value={regUser}
+                      onChange={(e) => setRegUser(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
+                      autoComplete="username"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="font-body text-[10px] uppercase tracking-widest text-white/40">Password</label>
+                    <input
+                      type="password"
+                      value={regPw}
+                      onChange={(e) => setRegPw(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/50 px-3 py-2.5 font-body text-sm text-white outline-none focus:border-gvc-gold/40"
+                      autoComplete="new-password"
+                      required
+                      minLength={8}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    aria-busy={loading}
+                    className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-xl bg-gvc-gold py-3 font-display text-sm font-black uppercase text-gvc-black disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Creating account…
+                      </>
+                    ) : (
+                      "Create account"
+                    )}
+                  </button>
+                </form>
+              )}
             </motion.div>
           </div>
         ) : null}

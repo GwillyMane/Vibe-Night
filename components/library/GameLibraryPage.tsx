@@ -1,24 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { VIBE_NIGHT } from "@/lib/brand";
-import { GAME_LIBRARY, type GameCatalogEntry, type GameId } from "@/lib/games/catalog";
+import { GAME_LIBRARY, gameRoutePath, type GameCatalogEntry, type GameId } from "@/lib/games/catalog";
 import { GameCard } from "./GameCard";
 import { GameLaunchModal } from "./GameLaunchModal";
 import { NightAccountBar } from "./NightAccountBar";
 import { LibraryHero } from "./LibraryHero";
-import GameClientGate from "@/components/game/GameClientGate";
-import VibeMergeClientGate from "@/components/game/VibeMergeClientGate";
-import VibeGardenClientGate from "@/components/game/VibeGardenClientGate";
-import CatchAVibeClientGate from "@/components/game/CatchAVibeClientGate";
-import VibeShiftClientGate from "@/components/game/VibeShiftClientGate";
-import LuckyVibesClientGate from "@/components/game/LuckyVibesClientGate";
 
 export default function GameLibraryPage() {
+  const router = useRouter();
   const [modalGame, setModalGame] = useState<GameCatalogEntry | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [activeGameId, setActiveGameId] = useState<GameId | null>(null);
 
   const openGame = (game: GameCatalogEntry) => {
     setModalGame(game);
@@ -35,102 +29,8 @@ export default function GameLibraryPage() {
     if (!game || game.status !== "available") return;
     setModalOpen(false);
     setModalGame(null);
-    setActiveGameId(id);
+    router.push(gameRoutePath(id));
   };
-
-  const exitToLibrary = () => {
-    setActiveGameId(null);
-  };
-
-  if (activeGameId === "catch-a-vibe") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <CatchAVibeClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
-
-  if (activeGameId === "vibe-garden") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <VibeGardenClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
-
-  if (activeGameId === "vibe-merge") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <VibeMergeClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
-
-  if (activeGameId === "lucky-vibes") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <LuckyVibesClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
-
-  if (activeGameId === "vibe-shift") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <VibeShiftClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
-
-  if (activeGameId === "vibe-crashers") {
-    return (
-      <div className="relative min-h-[100dvh]">
-        <button
-          type="button"
-          onClick={exitToLibrary}
-          className="fixed left-3 top-3 z-[60] rounded-xl border border-gvc-gold/35 bg-black/75 px-3 py-2 font-display text-[10px] font-bold uppercase tracking-widest text-gvc-gold shadow-lg backdrop-blur-md transition hover:border-gvc-gold/60 hover:bg-black/90 sm:left-4 sm:top-4 sm:text-xs"
-        >
-          ← {VIBE_NIGHT.shortName}
-        </button>
-        <GameClientGate onExitToLibrary={exitToLibrary} />
-      </div>
-    );
-  }
 
   return (
     <div className="relative mx-auto min-h-[100dvh] w-full max-w-6xl px-4 pb-arcade-player pt-arcade-player sm:px-6 sm:pt-10">
@@ -155,12 +55,7 @@ export default function GameLibraryPage() {
         New titles join the lineup as they ship. Sign in once — progress follows you everywhere.
       </motion.p>
 
-      <GameLaunchModal
-        game={modalGame}
-        open={modalOpen}
-        onClose={closeModal}
-        onLaunch={launchGame}
-      />
+      <GameLaunchModal game={modalGame} open={modalOpen} onClose={closeModal} onLaunch={launchGame} />
     </div>
   );
 }

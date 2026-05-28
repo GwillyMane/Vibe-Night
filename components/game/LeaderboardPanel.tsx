@@ -7,6 +7,7 @@ import type { LeaderboardApiRow } from "@/lib/leaderboardApi";
 import { playUiClick } from "@/lib/sounds";
 import { GameModal } from "./GameModal";
 import { arcadeTabBtn, arcadeTabRow } from "./gamePanelStyles";
+import { LeaderboardSkeleton } from "@/components/arcade/LeaderboardSkeleton";
 
 type Scope = "daily" | "weekly" | "alltime";
 type ViewMode = "level" | "daily";
@@ -59,6 +60,7 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
   const [apiRows, setApiRows] = useState<LeaderboardApiRow[] | null>(null);
   const [meRank, setMeRank] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open) setDailySeed(defaultDailySeed);
@@ -66,6 +68,7 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
 
   const load = useCallback(async () => {
     setFetchError(null);
+    setLoading(true);
     const params = new URLSearchParams();
     params.set("scope", tab);
     params.set("mode", viewMode);
@@ -88,6 +91,8 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
       setApiRows(null);
       setMeRank(null);
       setFetchError("Network error");
+    } finally {
+      setLoading(false);
     }
   }, [tab, viewMode, levelId, dailySeed]);
 
@@ -102,12 +107,13 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
   );
 
   const displayRows: LocalLeaderRow[] = useMemo(() => {
+    if (loading) return [];
     if (fetchError) return mergedFallback;
-    if (apiRows === null) return mergedFallback;
+    if (apiRows === null) return [];
     return mapApiToLocal(apiRows);
-  }, [apiRows, mergedFallback, fetchError]);
+  }, [apiRows, mergedFallback, fetchError, loading]);
 
-  const usingFallback = Boolean(fetchError) || apiRows === null;
+  const usingFallback = Boolean(fetchError) && !loading;
 
   return (
     <GameModal
@@ -176,12 +182,15 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
         ))}
       </div>
 
-      {meRank != null && !usingFallback ? (
+      {meRank != null && !usingFallback && !loading ? (
         <p className="mb-2 font-body text-xs text-gvc-gold">
           Your rank: <span className="font-display font-bold">#{meRank}</span>
         </p>
       ) : null}
 
+      {loading ? (
+        <LeaderboardSkeleton />
+      ) : (
       <ol className="space-y-2 pb-1">
         {displayRows.length === 0 ? (
           <li className="rounded-xl border border-dashed border-gvc-gold/20 bg-black/35 px-3 py-8 text-center font-body text-sm text-white/45">
@@ -216,6 +225,7 @@ export function LeaderboardPanel({ open, onClose, rows: fallbackRows, muted, def
           ))
         )}
       </ol>
+      )}
     </GameModal>
   );
 }

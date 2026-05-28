@@ -1,19 +1,10 @@
 "use client";
 
-import toast from "react-hot-toast";
 import { ArcadeResultShell } from "@/components/arcade/ArcadeResultShell";
-import { buildArcadeShareTextWithOg, copyShareText, twitterIntent } from "@/lib/arcade/share";
+import { useArcadeShare } from "@/hooks/useArcadeShare";
+import { defaultShowSignIn } from "@/lib/arcade/postRunProps";
 import type { CatchEndReason } from "@/lib/catch-a-vibe/catchEndReason";
 import { CATCH_END_COPY } from "@/lib/catch-a-vibe/catchEndReason";
-
-export function buildCatchShareText(score: number, maxCombo: number, mode: string): string {
-  return buildArcadeShareTextWithOg({
-    gameId: "catch-a-vibe",
-    score,
-    mode,
-    lines: [`Longest Combo: ×${maxCombo}`],
-  });
-}
 
 export function CatchResultScreen({
   score,
@@ -28,9 +19,12 @@ export function CatchResultScreen({
   isNewBest,
   muted,
   signedIn,
+  serverRank,
+  newAchievementSlugs,
   onRetry,
   onMenu,
   onSignIn,
+  onOpenLeaderboard,
 }: {
   score: number;
   best: number;
@@ -44,24 +38,25 @@ export function CatchResultScreen({
   isNewBest: boolean;
   muted: boolean;
   signedIn: boolean;
+  serverRank?: number | null;
+  newAchievementSlugs?: string[];
   onRetry: () => void;
   onMenu: () => void;
   onSignIn?: () => void;
+  onOpenLeaderboard?: () => void;
 }) {
   const copy = CATCH_END_COPY[endReason];
-  const shareText = buildCatchShareText(score, maxCombo, mode);
   const modeLabel =
     mode === "daily" ? "Daily catch" : mode === "zen" ? "Zen catch" : "Classic catch";
 
-  const share = () => {
-    window.open(twitterIntent(shareText), "_blank", "noopener,noreferrer");
-  };
-
-  const copyScore = async () => {
-    const ok = await copyShareText(shareText);
-    if (ok) toast.success("Catch copied — paste it anywhere.", { duration: 2000 });
-    else toast.error("Could not copy", { duration: 2000 });
-  };
+  const { shareToTwitter, copyScore } = useArcadeShare({
+    muted,
+    gameId: "catch-a-vibe",
+    score,
+    mode: modeLabel,
+    lines: [`Longest Combo: ×${maxCombo}`],
+    copyToast: "Catch copied — paste it anywhere.",
+  });
 
   return (
     <ArcadeResultShell
@@ -87,14 +82,17 @@ export function CatchResultScreen({
       ]}
       isNewBest={isNewBest}
       isLoggedIn={signedIn}
-      showSignIn={!signedIn && mode !== "zen"}
+      serverRank={serverRank}
+      showSignIn={defaultShowSignIn(signedIn, mode !== "zen")}
       onOpenAuth={onSignIn}
+      newAchievementSlugs={newAchievementSlugs}
       badgeGameId="catch-a-vibe"
       onRetry={onRetry}
       retryLabel="One more run"
-      onShare={share}
+      onShare={shareToTwitter}
       onCopy={() => void copyScore()}
       copyLabel="Copy catch"
+      onOpenLeaderboard={onOpenLeaderboard}
       onMenu={onMenu}
     />
   );

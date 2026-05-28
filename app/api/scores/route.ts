@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbAvailable, ensureTables, getPool, sqlNyDayStart, sqlNyWeekStart } from "@/lib/db";
-import { clientIp, rateLimitAllow } from "@/lib/rateLimit";
+import { clientIp, rateLimitCheck } from "@/lib/rateLimit";
+import { reportError } from "@/lib/observability";
 import { validateScorePayload } from "@/lib/scoreValidation";
 import { MERGE_GAME_ID } from "@/lib/vibe-merge/mergeConfig";
 import { validateMergeScorePayload } from "@/lib/vibe-merge/mergeScoreValidation";
@@ -15,7 +16,7 @@ import { validateLuckyScorePayload } from "@/lib/lucky-vibes/luckyScoreValidatio
 import { getCurrentUserFromRequest } from "@/lib/session";
 import { recordActivity, touchLastActive } from "@/lib/profile/activity";
 import { evaluateAndPersistUnlocks, ensureProfileRow } from "@/lib/profile/unlocks";
-import { upsertGameStats } from "@/lib/profile/queries";
+import { upsertGameStats, reconcileProfileAchievements } from "@/lib/profile/queries";
 import { GAME_LIBRARY, isKnownGameId } from "@/lib/games/catalog";
 import type { LeaderboardApiRow } from "@/lib/leaderboardApi";
 import { verifyScoreReplay } from "@/lib/scoreReplay";
@@ -208,6 +209,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ rows: outRows, ...(me ? { me } : {}) });
   } catch (e) {
     console.error("[GET /api/scores]", e);
+    reportError("GET /api/scores", e);
     return NextResponse.json({ error: "Could not load leaderboard.", rows: [] }, { status: 500 });
   }
 }
@@ -227,10 +229,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sign in to submit scores." }, { status: 401 });
   }
 
-  if (!rateLimitAllow(`scores:user:${user.id}`, 30, 60_000)) {
+  if (!(await rateLimitCheck(`scores:user:${user.id}`, 30, 60_000))) {
     return NextResponse.json({ error: "Too many submissions. Try again shortly." }, { status: 429 });
   }
-  if (!rateLimitAllow(`scores:ip:${clientIp(request)}`, 60, 60_000)) {
+  if (!(await rateLimitCheck(`scores:ip:${clientIp(request)}`, 60, 60_000))) {
     return NextResponse.json({ error: "Too many submissions. Try again shortly." }, { status: 429 });
   }
 
@@ -298,10 +300,12 @@ export async function POST(request: Request) {
   const replay = verifyScoreReplay({
     gameId,
     mode: payload.mode,
+    levelId: b.levelId,
     score: submittedScore,
     seed: b.seed,
     runSeed: b.runSeed,
     movesJson,
+    shotsUsed: payload.shotsUsed,
   });
   if (!replay.ok) {
     return NextResponse.json({ error: replay.error }, { status: 400 });
@@ -445,6 +449,9 @@ export async function POST(request: Request) {
     if (b.mode === "daily") statsPatch.dailyWins = 1;
     await upsertGameStats(pool, user.id, gameId, statsPatch);
     await evaluateAndPersistUnlocks(pool, user.id);
+    await reconcileProfileAchievements(pool, user.id).catch((e) =>
+      reportError("POST /api/scores reconcile", e)
+    );
 
     return NextResponse.json({
       ok: true,

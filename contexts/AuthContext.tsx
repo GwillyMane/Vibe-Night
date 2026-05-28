@@ -19,6 +19,8 @@ export type AuthUser = {
   created_at: string;
 };
 
+export type AuthResult = { ok: true } | { ok: false; error: string };
+
 type AuthCtx = {
   user: AuthUser | null;
   profile: ProfileMe | null;
@@ -26,8 +28,8 @@ type AuthCtx = {
   loading: boolean;
   refresh: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  login: (username: string, password: string) => Promise<boolean>;
-  register: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<AuthResult>;
+  register: (username: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   syncLocalProgressToServer: (opts: { soundMuted: boolean; reducedMotion?: boolean | null }) => Promise<void>;
 };
@@ -138,8 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error((data as { error?: string }).error ?? "Login failed");
-        return false;
+        return { ok: false as const, error: (data as { error?: string }).error ?? "Login failed" };
       }
       setUser((data as { user: AuthUser }).user);
       try {
@@ -149,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.error("Signed in — cloud sync failed. Your local progress is safe.");
       }
       await refresh();
-      return true;
+      return { ok: true as const };
     },
     [refresh, syncLocalProgressToServer]
   );
@@ -164,8 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error((data as { error?: string }).error ?? "Could not register");
-        return false;
+        return { ok: false as const, error: (data as { error?: string }).error ?? "Could not register" };
       }
       setUser((data as { user: AuthUser }).user);
       try {
@@ -175,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         toast.error("Account created — cloud sync failed. Your local progress is safe.");
       }
       await refresh();
-      return true;
+      return { ok: true as const };
     },
     [refresh, syncLocalProgressToServer]
   );

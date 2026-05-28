@@ -3,6 +3,14 @@ import type { TitleRarity } from "./catalog";
 /** Opaque surfaces — profile pages must not rely on site backdrop showing through. */
 export const PROFILE_PAGE_SHELL = "relative min-h-[100dvh]";
 
+export const PROFILE_NAV_BAR =
+  "mb-5 flex items-center justify-between gap-3 rounded-2xl border border-[#1F1F1F] bg-[#121212] px-3 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]";
+
+export const PROFILE_NAV_LINK =
+  "font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[#c4c4c4] transition hover:text-[#FFE048]";
+
+export const PROFILE_SHEET_BACKDROP = "absolute inset-0 bg-black/85 backdrop-blur-sm";
+
 export const PROFILE_PANEL =
   "overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#0c0c0c] shadow-[0_8px_32px_rgba(0,0,0,0.7)]";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ArcadeDailyHeroPanel } from "@/components/arcade/ArcadeDailyHeroPanel";
 import { ArcadeSecondaryGrid } from "@/components/arcade/ArcadeSecondaryGrid";
 import { ArcadeTitleShell } from "@/components/arcade/ArcadeTitleShell";
@@ -19,6 +19,7 @@ export function MergeTitleScreen({
   onCollection,
   onSettings,
   onBack,
+  resume,
 }: {
   muted: boolean;
   playBackgroundId: string;
@@ -30,6 +31,7 @@ export function MergeTitleScreen({
   onCollection: () => void;
   onSettings: () => void;
   onBack?: () => void;
+  resume?: ReactNode;
 }) {
   const daily = useMemo(() => readTitleDailyStats("vibe-merge"), []);
 
@@ -57,6 +59,7 @@ export function MergeTitleScreen({
         <MergeBackgroundPicker selectedId={playBackgroundId} muted={muted} onSelect={onSelectBackground} />
       }
     >
+      {resume}
       <ArcadeDailyHeroPanel
         challengeLabel="Today's stack"
         headline="Seeded drop stack"

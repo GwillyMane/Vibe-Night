@@ -8,8 +8,11 @@ import { LUCKY_GAME_ID } from "@/lib/lucky-vibes/luckyConfig";
 import { replayScore as replayLuckyScore } from "@/lib/lucky-vibes/luckyEngine";
 import type { LuckyMode } from "@/lib/lucky-vibes/luckyConfig";
 import { computeDailyFinalScore } from "@/lib/vibe-shift/shiftDaily";
+import { CRASHERS_GAME_ID } from "@/lib/games/catalog";
+import { validateArcadeMovesMetadata } from "@/lib/scoreMetadataValidation";
+import { replayCrashersScore } from "@/lib/crashers/crashersReplayEngine";
 
-const REPLAY_GAMES = new Set<string>([SHIFT_GAME_ID, LUCKY_GAME_ID]);
+const REPLAY_GAMES = new Set<string>([SHIFT_GAME_ID, LUCKY_GAME_ID, CRASHERS_GAME_ID]);
 
 export function scoreRequiresReplay(gameId: string): boolean {
   return REPLAY_GAMES.has(gameId);
@@ -18,15 +21,19 @@ export function scoreRequiresReplay(gameId: string): boolean {
 export function verifyScoreReplay(input: {
   gameId: string;
   mode: string;
+  levelId?: string;
   score: number;
   seed?: string | null;
   runSeed?: string | null;
   movesJson?: string | null;
+  shotsUsed?: number;
 }): { ok: true } | { ok: false; error: string } {
-  const { gameId, mode, score, seed, runSeed, movesJson } = input;
+  const { gameId, mode, levelId, score, seed, runSeed, movesJson, shotsUsed } = input;
 
-  if (!movesJson || movesJson.length < 2) {
-    return { ok: false, error: "Move history required for leaderboard submission." };
+  if (scoreRequiresReplay(gameId)) {
+    if (!movesJson || movesJson.length < 2) {
+      return { ok: false, error: "Move history required for leaderboard submission." };
+    }
   }
 
   if (gameId === SHIFT_GAME_ID) {
@@ -36,11 +43,11 @@ export function verifyScoreReplay(input: {
     const replayed = replayShiftScore(
       replaySeed,
       mode as ShiftMode,
-      movesJson,
+      movesJson!,
       mode === "classic" ? String(runSeed ?? seed ?? replaySeed) : undefined
     );
     if (replayed == null) return { ok: false, error: "Could not verify run." };
-    const expected = mode === "daily" ? computeDailyFinalScore(replayed, countShiftMoves(movesJson)) : replayed;
+    const expected = mode === "daily" ? computeDailyFinalScore(replayed, countShiftMoves(movesJson!)) : replayed;
     if (expected !== score) return { ok: false, error: "Score does not match verified replay." };
     return { ok: true };
   }
@@ -50,26 +57,49 @@ export function verifyScoreReplay(input: {
     const replaySeed = String(seed ?? runSeed ?? "");
     if (mode === "daily" && replaySeed.length < 8) return { ok: false, error: "Missing daily run seed." };
     if (mode === "classic" && replaySeed.length < 8) return { ok: false, error: "Missing run seed." };
-    const replayed = replayLuckyScore(replaySeed, mode as LuckyMode, movesJson);
+    const replayed = replayLuckyScore(replaySeed, mode as LuckyMode, movesJson!);
     if (replayed == null) return { ok: false, error: "Could not verify run." };
     if (replayed !== score) return { ok: false, error: "Score does not match verified replay." };
     return { ok: true };
   }
 
-  if (gameId === MERGE_GAME_ID || gameId === GARDEN_GAME_ID || gameId === CATCH_GAME_ID) {
-    try {
-      JSON.parse(movesJson);
-    } catch {
-      return { ok: false, error: "Invalid move history." };
+  if (movesJson && movesJson.length >= 2) {
+    const meta = validateArcadeMovesMetadata({
+      gameId,
+      mode,
+      score,
+      movesJson,
+      shotsUsed,
+    });
+    if (!meta.ok) return meta;
+  }
+
+  if (gameId === CRASHERS_GAME_ID) {
+    if (!movesJson || movesJson.length < 2) {
+      return { ok: false, error: "Move history required for leaderboard submission." };
     }
+    const replayed = replayCrashersScore({
+      mode,
+      levelId: levelId ?? "",
+      seed,
+      score,
+      movesJson,
+    });
+    if (replayed == null) return { ok: false, error: "Could not verify run." };
+    if (replayed !== score) return { ok: false, error: "Score does not match verified replay." };
     return { ok: true };
   }
 
-  try {
-    JSON.parse(movesJson);
-  } catch {
-    return { ok: false, error: "Invalid move history." };
+  if (
+    gameId === MERGE_GAME_ID ||
+    gameId === GARDEN_GAME_ID ||
+    gameId === CATCH_GAME_ID
+  ) {
+    if (!movesJson || movesJson.length < 2) {
+      return { ok: false, error: "Move history required for leaderboard submission." };
+    }
   }
+
   return { ok: true };
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clientIp, rateLimitAllow } from "@/lib/rateLimit";
+import { clientIp, rateLimitCheck } from "@/lib/rateLimit";
 
 const GATEWAYS = [
   "https://cloudflare-ipfs.com/ipfs/",
@@ -19,7 +19,7 @@ function normalizeIpfsPath(p: string): string | null {
 }
 
 export async function GET(req: NextRequest) {
-  if (!rateLimitAllow(`ipfs:ip:${clientIp(req)}`, 120, 60_000)) {
+  if (!(await rateLimitCheck(`ipfs:ip:${clientIp(req)}`, 120, 60_000))) {
     return NextResponse.json({ error: "rate limited" }, { status: 429 });
   }
   const p = req.nextUrl.searchParams.get("p");

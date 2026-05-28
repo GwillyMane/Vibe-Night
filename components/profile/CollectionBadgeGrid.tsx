@@ -75,9 +75,13 @@ export function CollectionBadgeGrid({
   const locked = filtered.filter((b) => !b.unlocked);
 
   if (!filtered.length) {
+    const emptyCopy =
+      gameFilter !== "all"
+        ? "No badges for this game yet — play to unlock"
+        : "No badges in this category yet.";
     return (
       <p className="rounded-xl border border-[#2a2a2a] bg-[#141414] px-4 py-8 text-center font-body text-sm text-[#888]">
-        No badges in this category yet.
+        {emptyCopy}
       </p>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ArcadeDailyHeroPanel } from "@/components/arcade/ArcadeDailyHeroPanel";
 import { ArcadeSecondaryGrid } from "@/components/arcade/ArcadeSecondaryGrid";
 import { ArcadeTitleShell } from "@/components/arcade/ArcadeTitleShell";
@@ -21,6 +21,7 @@ export function GardenTitleScreen({
   onCollection,
   onSettings,
   onBack,
+  resume,
 }: {
   muted: boolean;
   playBackgroundId: string;
@@ -33,6 +34,7 @@ export function GardenTitleScreen({
   onCollection?: () => void;
   onSettings: () => void;
   onBack?: () => void;
+  resume?: ReactNode;
 }) {
   const daily = useMemo(() => readTitleDailyStats("vibe-garden"), []);
 
@@ -64,6 +66,7 @@ export function GardenTitleScreen({
         <GardenBackgroundPicker selectedId={playBackgroundId} muted={muted} onSelect={onSelectBackground} />
       }
     >
+      {resume}
       <ArcadeDailyHeroPanel
         challengeLabel="Today's garden"
         headline="90-second seeded garden"

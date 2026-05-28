@@ -62,7 +62,6 @@ import {
   saveProjectileSkinToStorage,
   type ProjectileSkinId,
 } from "@/lib/assets/projectileSkins";
-import { showAchievementToasts } from "./AchievementToast";
 import { GameBackground } from "./GameBackground";
 import { GameHud } from "./GameHud";
 import { GamePlayActionBar } from "./GamePlayActionBar";
@@ -77,6 +76,14 @@ import { FirstRunCoachOverlay } from "@/components/arcade/FirstRunCoachOverlay";
 import { hasCompletedOnboarding } from "@/lib/arcade/onboarding";
 import { bumpNightStreakLoggedIn } from "@/lib/arcade/nightStreakClient";
 import { useArcadeAudioZone } from "@/hooks/useArcadeAudioZone";
+import { CRASHERS_GAME_ID } from "@/lib/games/catalog";
+import {
+  crashersResumeDetail,
+  loadCrashersResumeSnapshot,
+  saveCrashersResume,
+  type CrashersResumeSnapshot,
+} from "@/lib/crashers/crashersResume";
+import { ArcadeResumePrompt } from "@/components/arcade/ArcadeResumePrompt";
 
 export type GamePhase =
   | "menu"
@@ -178,6 +185,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
   const [tokenOptions, setTokenOptions] = useState<{ id: string; name: string; imageUrl: string }[]>([]);
   const [slingUiNorm, setSlingUiNorm] = useState({ x: 0.17, y: 0.72 });
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [pendingResume, setPendingResume] = useState<CrashersResumeSnapshot | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
@@ -228,6 +236,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
   const collisionHandlerRef = useRef<((e: Matter.IEventCollision<Matter.Engine>) => void) | null>(null);
   const collisionActiveRef = useRef<((e: Matter.IEventCollision<Matter.Engine>) => void) | null>(null);
   const shotBusyRef = useRef(false);
+  const movesHistoryRef = useRef<Array<{ vx: number; vy: number; pull: number }>>([]);
   const vibeCoreBrokenRef = useRef(false);
   const glassBrokenThisShotRef = useRef(0);
   const projectileSkinRef = useRef<ProjectileSkinId>("shaka");
@@ -288,6 +297,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
     void getDemoTokenEntries().then((rows) => {
       setTokenOptions(rows);
     });
+    setPendingResume(loadCrashersResumeSnapshot());
   }, []);
 
   useEffect(() => {
@@ -505,7 +515,6 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
         serverRank: null,
         submitId: typeof crypto !== "undefined" ? crypto.randomUUID() : `s-${Date.now()}`,
       });
-      showAchievementToasts(newly, "vibe-crashers");
       if (!userRef.current) {
         pushLocalLeaderRow({
           username: "YOU",
@@ -519,6 +528,8 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       }
 
       setPhase("levelComplete");
+      saveCrashersResume(null);
+      setPendingResume(null);
       shotBusyRef.current = false;
       return;
     }
@@ -543,6 +554,8 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       playGameOver(muted);
       Matter.Runner.stop(w.runner);
       setPhase("gameOver");
+      saveCrashersResume(null);
+      setPendingResume(null);
       shotBusyRef.current = false;
       return;
     }
@@ -555,7 +568,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
   }, [muted, pushHudFloat]);
 
   const startRun = useCallback(
-    (next: ActiveChallenge) => {
+    (next: ActiveChallenge, resume?: { score: number; shots: number }) => {
       playUiClick(muted);
       void resumeAudio();
       if (next.kind === "daily") void bumpNightStreakLoggedIn(!!userRef.current);
@@ -563,10 +576,11 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       teardownWorld();
       setResult(null);
       scoreSubmitSigRef.current = "";
+      movesHistoryRef.current = [];
       setChallenge(next);
       challengeRef.current = next;
-      setScore(0);
-      scoreRef.current = 0;
+      setScore(resume?.score ?? 0);
+      scoreRef.current = resume?.score ?? 0;
       clearedThisLaunchRef.current = 0;
       blocksThisLaunchRef.current = 0;
       maxComboTargetsRef.current = 0;
@@ -578,8 +592,9 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
 
       const level = resolveChallenge(next);
       maxShotsRef.current = level.availableShots;
-      shotsRef.current = level.availableShots;
-      setShots(level.availableShots);
+      const shotsStart = resume?.shots ?? level.availableShots;
+      shotsRef.current = shotsStart;
+      setShots(shotsStart);
       targetsInitialRef.current = level.targets.length;
 
       const worldApi = createPhysicsWorld(level);
@@ -881,7 +896,6 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
             serverRank: null,
             submitId: typeof crypto !== "undefined" ? crypto.randomUUID() : `s-${Date.now()}`,
           });
-          showAchievementToasts(newly, "vibe-crashers");
           if (!userRef.current) {
             pushLocalLeaderRow({
               username: "YOU",
@@ -951,6 +965,8 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       render.canvas.style.width = "100%";
       render.canvas.style.height = "100%";
       render.canvas.style.display = "block";
+      render.canvas.setAttribute("aria-label", "Vibe Crashers slingshot board — drag to aim and launch");
+      render.canvas.style.touchAction = "none";
       Matter.Render.run(render);
 
       setSlingUiNorm({
@@ -985,6 +1001,10 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       setCoachOpen(!hasCompletedOnboarding("vibe-crashers"));
       setAimLine(null);
       setAimPullNorm(0);
+      if (!resume) {
+        saveCrashersResume(null);
+        setPendingResume(null);
+      }
     },
     [muted, teardownWorld, finishShot, pushHudFloat]
   );
@@ -1093,6 +1113,11 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
         });
       }
       const vel = { x: pull.x * LAUNCH_SCALE, y: pull.y * LAUNCH_SCALE };
+      movesHistoryRef.current.push({
+        vx: Math.round(vel.x * 10) / 10,
+        vy: Math.round(vel.y * 10) / 10,
+        pull: Math.round(mag * 10) / 10,
+      });
       const body = worldRef.current.projectile;
       Matter.Body.setStatic(body, false);
       Matter.Sleeping.set(body, false);
@@ -1170,7 +1195,42 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
     startRun(challenge);
   };
 
+  const resumeRun = () => {
+    const snap = pendingResume ?? loadCrashersResumeSnapshot();
+    if (!snap) return;
+    playUiClick(muted);
+    startRun(snap.challenge, { score: snap.score, shots: snap.shots });
+  };
+
+  const discardResume = () => {
+    saveCrashersResume(null);
+    setPendingResume(null);
+  };
+
   const dailySeedPreview = typeof window !== "undefined" ? todaySeed() : challenge.seed;
+
+  useEffect(() => {
+    if (phase === "menu" || phase === "gameOver" || phase === "levelComplete") return;
+    if (practiceRef.current) return;
+    saveCrashersResume({
+      version: 1,
+      savedAt: Date.now(),
+      challenge: challengeRef.current,
+      score: scoreRef.current,
+      shots: shotsRef.current,
+    });
+  }, [phase, score, shots]);
+
+  useEffect(() => {
+    if (!debugMode || typeof window === "undefined") return;
+    window.__VIBE_DEBUG__ = {
+      game: "vibe-crashers",
+      phase,
+      score,
+      shots,
+      moves: movesHistoryRef.current.length,
+    };
+  }, [debugMode, phase, score, shots]);
 
   useEffect(() => {
     if (!result?.won || !user || !result.submitId) return;
@@ -1180,6 +1240,7 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
     let cancelled = false;
     const mode = challenge.kind === "daily" ? "daily" : "level";
     const payload = {
+      gameId: CRASHERS_GAME_ID,
       mode,
       levelId: runLevel.id,
       seed: challenge.kind === "daily" ? challenge.seed : null,
@@ -1190,6 +1251,11 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
       won: true,
       run_hash: result.submitId,
       client_version: "vibe-sling@0.1.0",
+      moves_json: JSON.stringify({
+        shots: movesHistoryRef.current,
+        levelId: runLevel.id,
+        score: result.score,
+      }),
     };
     void (async () => {
       try {
@@ -1279,6 +1345,17 @@ export default function VibeSlingGame({ onExitToLibrary }: VibeSlingGameProps = 
           tokenOptions={tokenOptions}
           onProjectileSkinChange={setProjectileSkin}
           onBackToLibrary={onExitToLibrary}
+          resume={
+            pendingResume ? (
+              <ArcadeResumePrompt
+                label="Resume crash"
+                detail={crashersResumeDetail(pendingResume)}
+                muted={muted}
+                onResume={resumeRun}
+                onDiscard={discardResume}
+              />
+            ) : undefined
+          }
           onSelectLevel={(levelId) =>
             startRun({ kind: "handcrafted", levelId, seed: `level-${levelId}` })
           }
