@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useProfileCollections } from "@/hooks/useProfileCollections";
 import { GAME_LIBRARY, type GameId } from "@/lib/games/catalog";
-import { TITLE_RARITY_CLASS } from "@/lib/profile/catalog";
 import {
   PROFILE_PANEL,
   PROFILE_PANEL_BODY,
@@ -15,6 +14,7 @@ import {
   PROFILE_SHEET_BACKDROP,
 } from "@/lib/profile/profileStyles";
 import { CollectionBadgeGrid } from "./CollectionBadgeGrid";
+import { TitleCollectionReadOnly } from "./TitleCollectionList";
 
 type CollectionsTab = "badges" | "titles";
 type GameFilter = GameId | "all";
@@ -63,15 +63,6 @@ export function ProfileCollectionsSheet({ open, onClose }: { open: boolean; onCl
       unlocked: collections.titles.filter((t) => t.unlocked).length,
       total: collections.titles.length,
     };
-  }, [collections]);
-
-  const titleGroups = useMemo(() => {
-    if (!collections) return [];
-    const order = ["legendary", "rare", "common"] as const;
-    return order.map((r) => ({
-      rarity: r,
-      items: collections.titles.filter((t) => t.rarity === r),
-    }));
   }, [collections]);
 
   return (
@@ -171,57 +162,7 @@ export function ProfileCollectionsSheet({ open, onClose }: { open: boolean; onCl
                       <CollectionBadgeGrid badges={collections.badges} gameFilter={gameFilter} />
                     </>
                   ) : (
-                    <div className="space-y-5">
-                      {titleGroups.map(({ rarity, items }) =>
-                        items.length ? (
-                          <div key={rarity}>
-                            <span
-                              className={`mb-2 inline-block rounded-full border px-2.5 py-0.5 font-body text-[9px] uppercase tracking-wider ${
-                                rarity === "legendary"
-                                  ? "border-gvc-gold/35 bg-gvc-gold/10 text-gvc-gold"
-                                  : rarity === "rare"
-                                    ? "border-pink-accent/30 bg-pink-accent/10 text-pink-accent"
-                                    : "border-[#2a2a2a] bg-[#141414] text-[#888]"
-                              }`}
-                            >
-                              {rarity}
-                            </span>
-                            <ul className="space-y-1.5">
-                              {items.map((t) => (
-                                <li
-                                  key={t.id}
-                                  className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${
-                                    t.unlocked ? "border-[#2a2a2a] bg-[#141414]" : "border-[#222] bg-[#0c0c0c] opacity-55"
-                                  }`}
-                                >
-                                  <span
-                                    className={`font-display text-xs font-bold uppercase ${
-                                      t.unlocked
-                                        ? TITLE_RARITY_CLASS[t.rarity as keyof typeof TITLE_RARITY_CLASS]
-                                        : "text-[#555]"
-                                    }`}
-                                  >
-                                    {t.label}
-                                  </span>
-                                  <span className="flex items-center gap-1.5 font-body text-[10px] text-[#666]">
-                                    {!t.unlocked ? (
-                                      <>
-                                        <Lock className="h-3 w-3" />
-                                        Locked
-                                      </>
-                                    ) : t.equipped ? (
-                                      <span className="text-gvc-gold">Equipped</span>
-                                    ) : (
-                                      "Unlocked"
-                                    )}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null,
-                      )}
-                    </div>
+                    <TitleCollectionReadOnly titles={collections.titles} />
                   )}
                 </>
               ) : (

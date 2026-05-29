@@ -4,59 +4,16 @@ import {
   PROFILE_TITLES,
   allCosmetics,
   achievementKey,
-  type ProfileTitleDef,
   type CosmeticDef,
 } from "./catalog";
-import type { UnlockContext, GameStatsJson } from "./types";
+import { LEGACY_TITLE_MIGRATIONS } from "./titles";
+import { titleUnlocked } from "./titleUnlockLogic";
+import type { UnlockContext } from "./types";
 import { computeIdentity } from "./identityScore";
 import { getStreak } from "./streaks";
 
 function cosmeticKey(type: string, id: string): string {
   return `${type}:${id}`;
-}
-
-function hasAchievement(ctx: UnlockContext, gameId: string, slug: string): boolean {
-  return ctx.achievementKeys.has(achievementKey(gameId as "vibe-crashers", slug));
-}
-
-function maxComboAcrossGames(stats: Record<string, GameStatsJson>): number {
-  let max = 0;
-  for (const s of Object.values(stats)) {
-    max = Math.max(max, s.maxCombo ?? 0);
-  }
-  return max;
-}
-
-function titleUnlocked(title: ProfileTitleDef, ctx: UnlockContext): boolean {
-  if (title.defaultOwned) return true;
-  switch (title.unlockRule) {
-    case "default":
-      return true;
-    case "achievement": {
-      const gameId = String(title.unlockParams?.gameId ?? "");
-      const slug = String(title.unlockParams?.slug ?? "");
-      return hasAchievement(ctx, gameId, slug);
-    }
-    case "stat": {
-      const stat = title.unlockParams?.stat;
-      if (stat === "maxCombo") {
-        return maxComboAcrossGames(ctx.gameStats) >= Number(title.unlockParams?.min ?? 25);
-      }
-      if (stat === "zenParticipation") {
-        for (const s of Object.values(ctx.gameStats)) {
-          if ((s.zenParticipation ?? 0) >= 1) return true;
-        }
-        return false;
-      }
-      return false;
-    }
-    case "tier":
-      return ctx.arcadeTier === title.unlockParams?.tier;
-    case "diversity":
-      return ctx.gamesWithScores.size >= Number(title.unlockParams?.gamesWithScores ?? 4);
-    default:
-      return false;
-  }
 }
 
 function cosmeticUnlocked(c: CosmeticDef, ctx: UnlockContext): boolean {
@@ -67,7 +24,7 @@ function cosmeticUnlocked(c: CosmeticDef, ctx: UnlockContext): boolean {
     case "achievement": {
       const gameId = String(c.unlockParams?.gameId ?? "");
       const slug = String(c.unlockParams?.slug ?? "");
-      return hasAchievement(ctx, gameId, slug);
+      return ctx.achievementKeys.has(achievementKey(gameId as "vibe-crashers", slug));
     }
     case "tier":
       return ctx.arcadeTier === c.unlockParams?.tier;
@@ -78,8 +35,29 @@ function cosmeticUnlocked(c: CosmeticDef, ctx: UnlockContext): boolean {
   }
 }
 
+export async function migrateLegacyTitles(pool: Pool | PoolClient, userId: string): Promise<void> {
+  for (const [oldId, newId] of Object.entries(LEGACY_TITLE_MIGRATIONS)) {
+    if (oldId === newId) continue;
+    await pool.query(
+      `UPDATE user_profiles SET equipped_title_id = $2
+       WHERE user_id = $1::uuid AND equipped_title_id = $3`,
+      [userId, newId, oldId]
+    );
+    const owned = await pool.query<{ title_id: string }>(
+      `SELECT title_id FROM user_titles WHERE user_id = $1::uuid AND title_id = $2`,
+      [userId, oldId]
+    );
+    if (owned.rows.length > 0) {
+      await pool.query(
+        `INSERT INTO user_titles (user_id, title_id) VALUES ($1::uuid, $2) ON CONFLICT DO NOTHING`,
+        [userId, newId]
+      );
+    }
+  }
+}
+
 export async function loadUnlockContext(pool: Pool | PoolClient, userId: string): Promise<UnlockContext> {
-  const [achRows, titleRows, cosmeticRows, streak, statsRows, scoreGames] = await Promise.all([
+  const [achRows, titleRows, cosmeticRows, streak, statsRows, scoreGames, profileRow] = await Promise.all([
     pool.query<{ game_id: string; achievement_id: string }>(
       `SELECT game_id, achievement_id FROM user_achievements WHERE user_id = $1::uuid`,
       [userId]
@@ -90,7 +68,7 @@ export async function loadUnlockContext(pool: Pool | PoolClient, userId: string)
       [userId]
     ),
     getStreak(pool as Pool, userId),
-    pool.query<{ game_id: string; stats_json: GameStatsJson }>(
+    pool.query<{ game_id: string; stats_json: import("./types").GameStatsJson }>(
       `SELECT game_id, stats_json FROM user_game_stats WHERE user_id = $1::uuid`,
       [userId]
     ),
@@ -98,12 +76,16 @@ export async function loadUnlockContext(pool: Pool | PoolClient, userId: string)
       `SELECT DISTINCT game_id FROM leaderboard_scores WHERE user_id = $1::uuid`,
       [userId]
     ),
+    pool.query<{ passport_url: string | null }>(
+      `SELECT passport_url FROM user_profiles WHERE user_id = $1::uuid`,
+      [userId]
+    ),
   ]);
 
   const achievementKeys = new Set(
     achRows.rows.map((r) => achievementKey(r.game_id as "vibe-crashers", r.achievement_id))
   );
-  const gameStats: Record<string, GameStatsJson> = {};
+  const gameStats: Record<string, import("./types").GameStatsJson> = {};
   for (const r of statsRows.rows) {
     gameStats[r.game_id] = r.stats_json ?? {};
   }
@@ -134,6 +116,7 @@ export async function loadUnlockContext(pool: Pool | PoolClient, userId: string)
     arcadeTier,
     gameStats,
     gamesWithScores: new Set(scoreGames.rows.map((r) => r.game_id)),
+    hasPassport: Boolean(profileRow.rows[0]?.passport_url),
   };
 }
 
@@ -141,6 +124,7 @@ export async function evaluateAndPersistUnlocks(
   pool: Pool | PoolClient,
   userId: string
 ): Promise<{ newTitles: string[]; newCosmetics: string[] }> {
+  await migrateLegacyTitles(pool, userId);
   const ctx = await loadUnlockContext(pool, userId);
   const newTitles: string[] = [];
   const newCosmetics: string[] = [];

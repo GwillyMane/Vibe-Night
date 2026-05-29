@@ -18,13 +18,20 @@ export interface ProfileTitleDef {
   rarity: TitleRarity;
   /** Always owned (e.g. default title). */
   defaultOwned?: boolean;
+  gameId?: GameId;
+  category?: "game" | "meta";
   /** Unlock rule key evaluated server-side in unlocks.ts */
   unlockRule:
     | "default"
     | "achievement"
     | "stat"
     | "tier"
-    | "diversity";
+    | "diversity"
+    | "gamesPlayed"
+    | "zenAllGames"
+    | "streak"
+    | "achievementCount"
+    | "passport";
   unlockParams?: Record<string, string | number>;
 }
 
@@ -54,78 +61,7 @@ export const DEFAULT_GLOW_ID = "gold";
 export const DEFAULT_BACKGROUND_ID = "embers";
 export const DEFAULT_PARTICLE_ID = "gold-drift";
 
-export const PROFILE_TITLES: ProfileTitleDef[] = [
-  {
-    id: DEFAULT_TITLE_ID,
-    label: "Vibe Night Regular",
-    rarity: "common",
-    defaultOwned: true,
-    unlockRule: "default",
-  },
-  {
-    id: "bloom-keeper",
-    label: "Bloom Keeper",
-    rarity: "rare",
-    unlockRule: "achievement",
-    unlockParams: { gameId: "vibe-garden", slug: "golden-ecosystem" },
-  },
-  {
-    id: "chaos-catcher",
-    label: "Chaos Catcher",
-    rarity: "legendary",
-    unlockRule: "achievement",
-    unlockParams: { gameId: "catch-a-vibe", slug: "legendary-catch" },
-  },
-  {
-    id: "golden-stacker",
-    label: "Golden Stacker",
-    rarity: "legendary",
-    unlockRule: "achievement",
-    unlockParams: { gameId: "vibe-merge", slug: "merge-legend" },
-  },
-  {
-    id: "garden-guardian",
-    label: "Garden Guardian",
-    rarity: "rare",
-    unlockRule: "achievement",
-    unlockParams: { gameId: "vibe-garden", slug: "master-gardener" },
-  },
-  {
-    id: "crash-architect",
-    label: "Crash Architect",
-    rarity: "legendary",
-    unlockRule: "achievement",
-    unlockParams: { gameId: "vibe-crashers", slug: "full-tour" },
-  },
-  {
-    id: "combo-hunter",
-    label: "Combo Hunter",
-    rarity: "rare",
-    unlockRule: "stat",
-    unlockParams: { stat: "maxCombo", min: 25 },
-  },
-  {
-    id: "flow-survivor",
-    label: "Flow Survivor",
-    rarity: "rare",
-    unlockRule: "stat",
-    unlockParams: { stat: "zenParticipation", min: 1 },
-  },
-  {
-    id: "legendary-viber",
-    label: "Legendary Viber",
-    rarity: "legendary",
-    unlockRule: "tier",
-    unlockParams: { tier: "Legend" },
-  },
-  {
-    id: "arcade-architect",
-    label: "Arcade Architect",
-    rarity: "legendary",
-    unlockRule: "diversity",
-    unlockParams: { gamesWithScores: 5 },
-  },
-];
+export { PROFILE_TITLES, LEGACY_TITLE_MIGRATIONS, resolveTitleId } from "./titles";
 
 export const PROFILE_THEMES: CosmeticDef[] = [
   { id: "midnight", label: "Midnight", type: "theme", defaultOwned: true, unlockRule: "default" },
@@ -234,8 +170,11 @@ export const UNIFIED_ACHIEVEMENTS: UnifiedAchievementDef[] = [
   })),
 ];
 
+import { PROFILE_TITLES as _PROFILE_TITLES, resolveTitleId } from "./titles";
+
 export function titleById(id: string): ProfileTitleDef | undefined {
-  return PROFILE_TITLES.find((t) => t.id === id);
+  const resolved = resolveTitleId(id);
+  return _PROFILE_TITLES.find((t) => t.id === resolved);
 }
 
 export function achievementByKey(key: string): UnifiedAchievementDef | undefined {

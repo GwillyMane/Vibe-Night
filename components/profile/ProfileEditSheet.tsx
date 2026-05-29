@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Check, Loader2, Lock, Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { ProfileHeroCore } from "@/components/profile/ProfileHeroCore";
+import { TitlePickerList } from "@/components/profile/TitleCollectionList";
 import {
   arcadeBackdropClass,
   arcadeCloseBtnClass,
@@ -16,7 +17,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useProfileCollections } from "@/hooks/useProfileCollections";
 import { GAME_LIBRARY } from "@/lib/games/catalog";
-import { TITLE_RARITY_CLASS } from "@/lib/profile/catalog";
 import {
   mergeProfilePreview,
   type ProfileCustomizationDraft,
@@ -26,7 +26,6 @@ import {
   profileBorderClass,
   profileHeroShellClass,
   PROFILE_SHEET_BACKDROP,
-  RARITY_CHIP_CLASS,
 } from "@/lib/profile/profileStyles";
 import { avatarUrlForFaceId } from "@/lib/profile/profileUi";
 import type { CollectionItem, CollectionsSnapshot, PinnedBadge } from "@/lib/profile/types";
@@ -134,55 +133,7 @@ function TitlePicker({
   activeId: string;
   onSelect: (id: string) => void;
 }) {
-  const groups = useMemo(() => {
-    const order = ["legendary", "rare", "common"] as const;
-    return order.map((r) => ({
-      rarity: r,
-      items: titles.filter((t) => t.rarity === r),
-    }));
-  }, [titles]);
-
-  return (
-    <div className="space-y-4">
-      {groups.map(({ rarity, items }) =>
-        items.length ? (
-          <div key={rarity}>
-            <span
-              className={`mb-2 inline-block rounded-full border px-2 py-0.5 font-body text-[9px] uppercase tracking-wider ${RARITY_CHIP_CLASS[rarity as keyof typeof RARITY_CHIP_CLASS]}`}
-            >
-              {rarity}
-            </span>
-            <div className="flex flex-col gap-1.5">
-              {items.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  disabled={!t.unlocked}
-                  onClick={() => t.unlocked && onSelect(t.id)}
-                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition active:scale-[0.99] ${
-                    !t.unlocked
-                      ? "border-white/8 bg-black/20 text-white/30"
-                      : activeId === t.id
-                        ? "border-gvc-gold/45 bg-gvc-gold/10"
-                        : "border-white/10 bg-white/[0.02] hover:border-gvc-gold/25"
-                  }`}
-                >
-                  <span
-                    className={`font-display text-xs font-bold uppercase ${
-                      t.unlocked ? TITLE_RARITY_CLASS[t.rarity as keyof typeof TITLE_RARITY_CLASS] : ""
-                    }`}
-                  >
-                    {t.label}
-                  </span>
-                  {!t.unlocked ? <Lock className="h-3.5 w-3.5" /> : activeId === t.id ? <Check className="h-3.5 w-3.5 text-gvc-gold" /> : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null,
-      )}
-    </div>
-  );
+  return <TitlePickerList titles={titles} activeId={activeId} onSelect={onSelect} />;
 }
 
 function BadgeGrid({

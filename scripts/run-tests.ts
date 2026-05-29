@@ -7,6 +7,7 @@ import { MERGE_GAME_ID } from "../lib/vibe-merge/mergeConfig";
 import { CRASHERS_GAME_ID } from "../lib/games/catalog";
 import { rateLimitAllow } from "../lib/rateLimit";
 import { sanitizeAchievementSlugs } from "../lib/syncAchievements";
+import { runTitleTests } from "../lib/profile/titles/titleTests";
 
 function testScoreReplay() {
   assert.equal(scoreRequiresReplay(SHIFT_GAME_ID), true);
@@ -61,4 +62,5 @@ function testAchievements() {
 testScoreReplay();
 testRateLimit();
 testAchievements();
+runTitleTests();
 console.log("All tests passed.");

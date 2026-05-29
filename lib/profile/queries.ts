@@ -19,7 +19,7 @@ import type {
   CollectionsSnapshot,
   CollectionItem,
 } from "./types";
-import { ensureProfileRow, loadUnlockContext } from "./unlocks";
+import { ensureProfileRow, evaluateAndPersistUnlocks, loadUnlockContext } from "./unlocks";
 import {
   PROFILE_TITLES,
   PROFILE_THEMES,
@@ -31,6 +31,8 @@ import {
   UNIFIED_ACHIEVEMENTS,
   achievementKey,
 } from "./catalog";
+import { resolveTitleId } from "./titles";
+import { titleUnlocked } from "./titleUnlockLogic";
 import { inferEarnedAchievementKeys, slugsToSyncByGame, type CrashersProgressHints } from "./earnedAchievements";
 
 function gameLabel(gameId: string | null): string | null {
@@ -275,8 +277,9 @@ export async function reconcileProfileAchievements(pool: Pool, userId: string): 
 }
 
 export async function buildCollectionsSnapshot(pool: Pool, userId: string, profile: ProfileMe): Promise<CollectionsSnapshot> {
-  const newly = await reconcileProfileAchievements(pool, userId);
-  const me = newly.length ? ((await fetchProfileMe(pool, userId)) ?? profile) : profile;
+  await evaluateAndPersistUnlocks(pool, userId);
+  await reconcileProfileAchievements(pool, userId);
+  const me = (await fetchProfileMe(pool, userId)) ?? profile;
 
   const ctx = await loadUnlockContext(pool, userId);
   const hints = await fetchCrashersProgressHints(pool, userId);
@@ -288,8 +291,10 @@ export async function buildCollectionsSnapshot(pool: Pool, userId: string, profi
     id: t.id,
     label: t.label,
     rarity: t.rarity,
-    unlocked: ownedTitles.has(t.id),
-    equipped: me.equippedTitleId === t.id,
+    gameId: t.gameId,
+    category: t.category,
+    unlocked: ownedTitles.has(t.id) || titleUnlocked(t, ctx),
+    equipped: me.equippedTitleId === t.id || resolveTitleId(me.equippedTitleId) === t.id,
   }));
 
   const badges: CollectionItem[] = UNIFIED_ACHIEVEMENTS.map((a) => ({

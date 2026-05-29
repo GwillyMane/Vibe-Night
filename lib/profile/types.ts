@@ -71,6 +71,7 @@ export interface CollectionItem {
   description?: string;
   tier?: string;
   gameId?: string;
+  category?: "game" | "meta";
 }
 
 export interface CollectionsSnapshot {
@@ -134,4 +135,5 @@ export interface UnlockContext {
   arcadeTier: ArcadeTier;
   gameStats: Record<string, GameStatsJson>;
   gamesWithScores: Set<string>;
+  hasPassport: boolean;
 }
