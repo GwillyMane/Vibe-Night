@@ -12,9 +12,7 @@ import {
 } from "@/lib/vibe-shift/shiftPaint";
 import { SHIFT_BOARD_SIZE } from "@/lib/vibe-shift/shiftConfig";
 
-const AXIS_LOCK_PX = 6;
 const SNAP_MS = 180;
-const REVERT_MS = 260;
 
 type DragState = {
   r: number;
@@ -39,7 +37,6 @@ type AnimState = {
 export interface ShiftBoardCanvasProps {
   board: Board;
   disabled?: boolean;
-  reverting?: boolean;
   juice?: ShiftJuiceFx | null;
   clearingCells?: Set<string>;
   clearFade?: number;
@@ -52,7 +49,6 @@ export interface ShiftBoardCanvasProps {
 export function ShiftBoardCanvas({
   board,
   disabled,
-  reverting,
   juice,
   clearingCells,
   clearFade = 0,
@@ -73,7 +69,6 @@ export function ShiftBoardCanvas({
   const animRef = useRef<AnimState | null>(null);
   const committedRef = useRef<DragPreview | null>(null);
   const busyRef = useRef(false);
-  const revertAnimRef = useRef(false);
   const rafRef = useRef<number>(0);
   const onShiftRef = useRef(onShift);
   const lastTickRef = useRef(performance.now());
@@ -93,8 +88,7 @@ export function ShiftBoardCanvas({
   const cs = cellSize(board);
 
   const currentDrag = (): DragPreview | null => {
-    // During resolve the board is already shifted — don't apply lane drag offset
-    if (disabledRef.current && !revertAnimRef.current) return null;
+    if (disabledRef.current) return null;
     if (committedRef.current) return committedRef.current;
     const anim = animRef.current;
     if (anim) {
@@ -118,7 +112,6 @@ export function ShiftBoardCanvas({
     if (!ctx) return;
     paintShiftBoard(ctx, boardRef.current, {
       drag: currentDrag(),
-      reverting: reverting || revertAnimRef.current,
       juice: juiceRef.current,
       clearingCells: clearingRef.current,
       clearFade: clearFadeRef.current,
@@ -126,7 +119,7 @@ export function ShiftBoardCanvas({
       falls: fallsRef.current,
       fallBoard: fallBoardRef.current,
     });
-  }, [reverting]);
+  }, []);
 
   const startAnim = (anim: Omit<AnimState, "start">) => {
     animRef.current = { ...anim, start: performance.now() };
@@ -171,39 +164,18 @@ export function ShiftBoardCanvas({
   }, [clearingCells]);
 
   useEffect(() => {
-    if (!reverting || !committedRef.current) return;
-    const prev = committedRef.current;
-    committedRef.current = null;
-    revertAnimRef.current = true;
-    startAnim({
-      axis: prev.axis,
-      index: prev.index,
-      from: prev.offsetPx,
-      to: 0,
-      duration: REVERT_MS,
-      onDone: () => {
-        revertAnimRef.current = false;
-        busyRef.current = false;
-      },
-    });
-  }, [reverting]);
-
-  useEffect(() => {
     if (disabled) {
-      if (!reverting && !revertAnimRef.current) {
-        committedRef.current = null;
-        animRef.current = null;
-        dragRef.current = null;
-        busyRef.current = false;
-      }
+      committedRef.current = null;
+      animRef.current = null;
+      dragRef.current = null;
+      busyRef.current = false;
       return;
     }
     committedRef.current = null;
     dragRef.current = null;
     animRef.current = null;
     busyRef.current = false;
-    revertAnimRef.current = false;
-  }, [board, disabled, reverting]);
+  }, [board, disabled]);
 
   const cellFromEvent = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -242,11 +214,14 @@ export function ShiftBoardCanvas({
     const scaleY = SHIFT_BOARD_SIZE / rect.height;
     const dx = (e.clientX - d.startX) * scaleX;
     const dy = (e.clientY - d.startY) * scaleY;
-    if (!d.axis) {
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < AXIS_LOCK_PX) return;
-      d.axis = Math.abs(dx) > Math.abs(dy) ? "row" : "col";
-      d.index = d.axis === "row" ? d.r : d.c;
+    const mag = Math.max(Math.abs(dx), Math.abs(dy));
+    if (mag < cs * 0.08) {
+      d.axis = null;
+      d.offsetPx = 0;
+      return;
     }
+    d.axis = Math.abs(dx) > Math.abs(dy) ? "row" : "col";
+    d.index = d.axis === "row" ? d.r : d.c;
     d.offsetPx = d.axis === "row" ? dx : dy;
   };
 

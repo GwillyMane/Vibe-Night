@@ -4,13 +4,13 @@ Slide-match puzzle: shift entire rows or columns on a 6×6 grid of GVC face colo
 
 ## Modes
 
-- **Classic** — 10 levels per run with cumulative score targets (600 → 15,500). New board each level. Win by clearing all 10; lose on gridlock.
+- **Classic** — 10 levels per run with cumulative score targets (600 → 15,500). New board each level. Win by clearing all 10.
 - **Daily** — Shared seed via `todaySeed()`, 35-move budget, score chase with unused-move efficiency bonus.
 
 ## Core rules
 
 - Shifts wrap around row/column edges.
-- **Match-or-revert:** a shift only commits if it creates at least one match of 3+; otherwise the board reverts and the move is not consumed.
+- **Every shift commits:** the board updates and the move is consumed, even if no match is created.
 - Matches clear, refill from seeded stream, cascades repeat until stable.
 
 ## Engine (`lib/vibe-shift/`)

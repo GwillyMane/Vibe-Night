@@ -5,7 +5,7 @@ export type ShiftEndReason =
   | "quit";
 
 export const SHIFT_RULES_HINT =
-  "Drag a row or column to shift faces. Match 3+ in a row/column, 4+ for bonus lines, or 2×2 squares — only scoring shifts stick.";
+  "Drag a row or column to shift faces. Match 3+ in a row/column, 4+ for bonus lines, or 2×2 squares. Every shift counts as a move.";
 
 export function endReasonLabel(reason: ShiftEndReason | null): string {
   switch (reason) {

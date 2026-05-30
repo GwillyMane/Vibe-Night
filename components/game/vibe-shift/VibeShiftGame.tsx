@@ -48,7 +48,6 @@ import {
   playShiftGameOver,
   playShiftLevelUp,
   playShiftMatch,
-  playShiftRevert,
   playShiftSlide,
 } from "@/lib/vibe-shift/shiftSounds";
 import { playUiClick } from "@/lib/sounds";
@@ -94,7 +93,6 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
   const [run, setRun] = useState<ShiftRunState | null>(null);
   const runRef = useRef<ShiftRunState | null>(null);
   const [persisted, setPersisted] = useState(loadShiftPersisted);
-  const [reverting, setReverting] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
   const [endReason, setEndReason] = useState<ShiftEndReason | null>(null);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -301,16 +299,7 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
       if (!state || phaseRef.current !== "playing" || resolvingRef.current) return false;
 
       playShiftSlide(muted);
-      const { state: next, reverted, steps } = applyPlayerMoveWithSteps(state, move);
-
-      if (reverted) {
-        runRef.current = next;
-        setRun({ ...next });
-        playShiftRevert(muted);
-        setReverting(true);
-        window.setTimeout(() => setReverting(false), 300);
-        return true;
-      }
+      const { state: next, steps } = applyPlayerMoveWithSteps(state, move);
 
       resolvingRef.current = true;
       setPhase("resolving");
@@ -469,7 +458,6 @@ export default function VibeShiftGame({ onExitToLibrary }: VibeShiftGameProps) {
         <ShiftBoardCanvas
           board={boardToShow}
           disabled={phase !== "playing"}
-          reverting={reverting}
           juice={juice}
           clearingCells={clearingCells}
           clearFade={clearFade}

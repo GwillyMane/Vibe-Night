@@ -1,8 +1,7 @@
 import { seededRandom, todaySeed } from "@/lib/daily-seed";
 import { applySlide, createBoard, type Board, type ShiftMove } from "./shiftBoard";
 import { createLevelBoard, checkLevelAdvance, getLevelTarget } from "./shiftLevels";
-import { hasLegalMoves } from "./shiftLegalMoves";
-import { findMatches } from "./shiftMatch";
+import { hasScoringMove } from "./shiftLegalMoves";
 import { runCascadeLoop, type CascadeStepDetail } from "./shiftRefill";
 import {
   BOARD_GEN_MAX_RETRIES,
@@ -46,7 +45,7 @@ export function createDailyBoard(seed: string): Board {
   for (let attempt = 0; attempt < BOARD_GEN_MAX_RETRIES; attempt++) {
     const rand = seededRandom(`shift-daily:${seed}:a${attempt}`);
     const board = createBoard(GRID_ROWS, GRID_COLS, rand);
-    if (hasLegalMoves(board)) return board;
+    if (hasScoringMove(board)) return board;
   }
   const rand = seededRandom(`shift-daily:${seed}:fallback`);
   return createBoard(GRID_ROWS, GRID_COLS, rand);
@@ -125,15 +124,11 @@ function finalizeAfterCascade(
       };
     } else if (runComplete) {
       next = { ...next, level: CLASSIC_LEVEL_COUNT, phase: "ended", endReason: "classic_complete" };
-    } else if (!hasLegalMoves(cascade.board)) {
-      next = { ...next, phase: "ended", endReason: "gridlock" };
     }
   } else {
     const budgetLeft = (state.maxMoves ?? DAILY_MOVE_BUDGET) - next.movesUsed;
     if (budgetLeft <= 0) {
       next = { ...next, phase: "ended", endReason: "daily_moves_exhausted" };
-    } else if (!hasLegalMoves(cascade.board)) {
-      next = { ...next, phase: "ended", endReason: "gridlock" };
     }
   }
 
@@ -146,11 +141,13 @@ export interface PlayerMoveResult {
   steps: CascadeStepDetail[];
 }
 
-function applySuccessfulMove(
+export function applyPlayerMoveWithSteps(
   state: ShiftRunState,
   move: ShiftMove,
-  at: number
+  at = Date.now()
 ): PlayerMoveResult {
+  if (state.phase !== "playing") return { state, reverted: false, steps: [] };
+
   const slid = applySlide(state.board, move);
   const cascade = runCascadeLoop(slid, `${state.runSeed}:${state.movesUsed}`);
   const record: ShiftMoveRecord = { at, move, scoreDelta: cascade.scoreFromCells, reverted: false };
@@ -161,28 +158,6 @@ function applySuccessfulMove(
   };
 }
 
-export function applyPlayerMoveWithSteps(
-  state: ShiftRunState,
-  move: ShiftMove,
-  at = Date.now()
-): PlayerMoveResult {
-  if (state.phase !== "playing") return { state, reverted: false, steps: [] };
-
-  const slid = applySlide(state.board, move);
-  if (!findMatches(slid).cellCount) {
-    return {
-      reverted: true,
-      steps: [],
-      state: {
-        ...state,
-        moves: [...state.moves, { at, move, scoreDelta: 0, reverted: true }],
-      },
-    };
-  }
-
-  return applySuccessfulMove(state, move, at);
-}
-
 export function applyPlayerMove(state: ShiftRunState, move: ShiftMove, at = Date.now()): ShiftRunState {
   return applyPlayerMoveWithSteps(state, move, at).state;
 }
@@ -190,11 +165,7 @@ export function applyPlayerMove(state: ShiftRunState, move: ShiftMove, at = Date
 export function continueAfterLevelUp(state: ShiftRunState): ShiftRunState {
   if (state.phase !== "levelUp") return state;
   const board = createLevelBoard(state.runSeed, state.level);
-  let next: ShiftRunState = { ...state, board, phase: "playing" };
-  if (!hasLegalMoves(board)) {
-    next = { ...next, phase: "ended", endReason: "gridlock" };
-  }
-  return next;
+  return { ...state, board, phase: "playing" };
 }
 
 export function serializeMoves(moves: ShiftMoveRecord[]): string {

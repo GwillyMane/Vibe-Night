@@ -50,7 +50,7 @@ export const COACH_STEPS: Record<GameId | "vibe-crashers", CoachStep[]> = {
   "vibe-shift": [
     { title: "Shift rows or columns", body: "Drag horizontally on a row or vertically on a column to wrap-shift faces.", emoji: "↔️" },
     { title: "Lines & squares", body: "Match 3+ in a row or column, or form a 2×2 square of the same vibe.", emoji: "🟨" },
-    { title: "Match-or-revert", body: "If your shift doesn't create a match, the board snaps back — no move spent.", emoji: "↩️" },
+    { title: "Every shift counts", body: "Drag any row or column — shifts always apply. Match 3+ lines or 2×2 squares to score.", emoji: "↔️" },
     { title: "Chains score big", body: "Clears refill and cascade — bigger combos multiply your points.", emoji: "💥" },
   ],
   "lucky-vibes": [

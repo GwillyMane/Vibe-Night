@@ -36,7 +36,7 @@ export const GAME_LIBRARY: GameCatalogEntry[] = [
     tags: ["Puzzle", "Match", "Daily"],
     features: [
       "Wraparound row & column shifts",
-      "Match-or-revert — no match, no move spent",
+      "Every shift counts — match lines or 2×2 squares to score",
       "Classic 10-level run & daily seeded board",
       "Vibe Night account leaderboards",
     ],

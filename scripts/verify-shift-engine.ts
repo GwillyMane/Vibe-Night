@@ -80,24 +80,24 @@ function assert(name: string, cond: boolean) {
 
 {
   let state = initDailyRun("verify-revert");
-  let revertMove = null as import("../lib/vibe-shift/shiftBoard").ShiftMove | null;
+  let noMatchMove = null as import("../lib/vibe-shift/shiftBoard").ShiftMove | null;
   for (let r = 0; r < GRID_ROWS; r++) {
     for (const dir of [1, -1] as const) {
       const m = { axis: "row" as const, index: r, dir };
       if (!wouldMatch(state.board, m)) {
-        revertMove = m;
+        noMatchMove = m;
         break;
       }
     }
-    if (revertMove) break;
+    if (noMatchMove) break;
   }
-  if (revertMove) {
+  if (noMatchMove) {
     const before = JSON.stringify(state.board);
-    const next = applyPlayerMove(state, revertMove);
-    assert("revert preserves board", JSON.stringify(next.board) === before);
-    assert("revert does not consume move", next.movesUsed === state.movesUsed);
+    const next = applyPlayerMove(state, noMatchMove);
+    assert("no-match shift changes board", JSON.stringify(next.board) !== before);
+    assert("no-match shift consumes move", next.movesUsed === state.movesUsed + 1);
   } else {
-    console.log("~ skip revert test (all moves match on this seed)");
+    console.log("~ skip no-match test (all moves match on this seed)");
   }
 }
 
@@ -105,10 +105,13 @@ function assert(name: string, cond: boolean) {
   let state = initClassicRun("verify-classic");
   const legal = findLegalMoves(state.board);
   assert("classic board has legal moves", legal.length > 0);
-  if (legal[0]) {
-    const next = applyPlayerMove(state, legal[0]!);
+  const scoring = legal.find((m) => wouldMatch(state.board, m));
+  if (scoring) {
+    const next = applyPlayerMove(state, scoring);
     assert("successful move increments moves", next.movesUsed === 1);
     assert("successful move adds score", next.score > 0);
+  } else {
+    console.log("~ skip scoring test (no scoring move on this seed)");
   }
 }
 

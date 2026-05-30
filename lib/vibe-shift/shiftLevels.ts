@@ -2,7 +2,7 @@ import { seededRandom } from "@/lib/daily-seed";
 
 import { createBoard, type Board } from "./shiftBoard";
 
-import { hasLegalMoves } from "./shiftLegalMoves";
+import { hasScoringMove } from "./shiftLegalMoves";
 
 import {
 
@@ -72,7 +72,7 @@ export function createLevelBoard(runSeed: string, level: number): Board {
 
     const board = createBoard(GRID_ROWS, GRID_COLS, rand);
 
-    if (hasLegalMoves(board)) return board;
+    if (hasScoringMove(board)) return board;
 
   }
 
